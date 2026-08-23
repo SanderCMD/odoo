@@ -1,0 +1,13 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_event_builder_config_manager,event.builder.config.manager,model_event_builder_config,sales_team.group_sale_manager,1,1,1,1
+access_event_builder_step_manager,event.builder.step.manager,model_event_builder_step,sales_team.group_sale_manager,1,1,1,1
+access_event_builder_option_manager,event.builder.option.manager,model_event_builder_option,sales_team.group_sale_manager,1,1,1,1
+access_event_builder_config_user,event.builder.config.user,model_event_builder_config,base.group_user,1,0,0,0
+access_event_builder_step_user,event.builder.step.user,model_event_builder_step,base.group_user,1,0,0,0
+access_event_builder_option_user,event.builder.option.user,model_event_builder_option,base.group_user,1,0,0,0
+access_event_builder_config_public,event.builder.config.public,model_event_builder_config,base.group_public,1,0,0,0
+access_event_builder_step_public,event.builder.step.public,model_event_builder_step,base.group_public,1,0,0,0
+access_event_builder_option_public,event.builder.option.public,model_event_builder_option,base.group_public,1,0,0,0
+access_event_builder_config_portal,event.builder.config.portal,model_event_builder_config,base.group_portal,1,0,0,0
+access_event_builder_step_portal,event.builder.step.portal,model_event_builder_step,base.group_portal,1,0,0,0
+access_event_builder_option_portal,event.builder.option.portal,model_event_builder_option,base.group_portal,1,0,0,0

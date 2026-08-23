@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+      Demodata: alleen geladen als de database met demodata aangemaakt is.
+      Bedoeld om de PoC meteen te kunnen tonen zonder eerst een half uur te
+      klikken. Vervang deze producten later door je echte cataloog.
+
+      Waarom `noupdate="0"` (de standaard)? Dan worden deze records bij een
+      module-upgrade opnieuw gesynchroniseerd. Voor echte klantdata zet je
+      `noupdate="1"`, zodat een upgrade nooit iets overschrijft.
+    -->
+
+    <!-- ============ PRODUCTEN ============ -->
+    <!--
+      We maken `product.product` aan, niet `product.template`. Odoo koppelt die
+      twee via _inherits: velden als `name` en `list_price` staan technisch op
+      de template, maar je mag ze hier gewoon meegeven. Odoo maakt de template
+      automatisch mee aan.
+    -->
+
+    <record id="product_walking_dinner" model="product.product">
+        <field name="name">Walking dinner (per persoon)</field>
+        <field name="type">service</field>
+        <field name="list_price">45.00</field>
+        <field name="sale_ok" eval="True"/>
+        <field name="is_published" eval="True"/>
+    </record>
+
+    <record id="product_bbq" model="product.product">
+        <field name="name">BBQ formule (per persoon)</field>
+        <field name="type">service</field>
+        <field name="list_price">32.00</field>
+        <field name="sale_ok" eval="True"/>
+        <field name="is_published" eval="True"/>
+    </record>
+
+    <record id="product_broodjes" model="product.product">
+        <field name="name">Broodjeslunch (per persoon)</field>
+        <field name="type">service</field>
+        <field name="list_price">14.00</field>
+        <field name="sale_ok" eval="True"/>
+        <field name="is_published" eval="True"/>
+    </record>
+
+    <record id="product_stoel_klap" model="product.product">
+        <field name="name">Klapstoel wit</field>
+        <field name="type">consu</field>
+        <field name="list_price">2.50</field>
+        <field name="sale_ok" eval="True"/>
+        <field name="is_published" eval="True"/>
+    </record>
+
+    <record id="product_stoel_design" model="product.product">
+        <field name="name">Designstoel eiken</field>
+        <field name="type">consu</field>
+        <field name="list_price">7.00</field>
+        <field name="sale_ok" eval="True"/>
+        <field name="is_published" eval="True"/>
+    </record>
+
+    <record id="product_statafel" model="product.product">
+        <field name="name">Statafel met hoes</field>
+        <field name="type">consu</field>
+        <field name="list_price">12.00</field>
+        <field name="sale_ok" eval="True"/>
+        <field name="is_published" eval="True"/>
+    </record>
+
+    <record id="product_bankettafel" model="product.product">
+        <field name="name">Bankettafel 240cm</field>
+        <field name="type">consu</field>
+        <field name="list_price">18.00</field>
+        <field name="sale_ok" eval="True"/>
+        <field name="is_published" eval="True"/>
+    </record>
+
+    <record id="product_geluid" model="product.product">
+        <field name="name">Geluidsinstallatie + micro</field>
+        <field name="type">consu</field>
+        <field name="list_price">250.00</field>
+        <field name="sale_ok" eval="True"/>
+        <field name="is_published" eval="True"/>
+    </record>
+
+    <record id="product_verlichting" model="product.product">
+        <field name="name">Sfeerverlichting</field>
+        <field name="type">consu</field>
+        <field name="list_price">180.00</field>
+        <field name="sale_ok" eval="True"/>
+        <field name="is_published" eval="True"/>
+    </record>
+
+    <!-- ============ DE CONFIGURATOR ============ -->
+
+    <record id="config_bedrijfsevent" model="event.builder.config">
+        <field name="name">Bedrijfsevent</field>
+        <field name="guest_default">150</field>
+        <field name="guest_min">20</field>
+        <field name="guest_max">1000</field>
+        <field name="min_lead_days">7</field>
+    </record>
+
+    <!-- ============ STAPPEN ============ -->
+
+    <record id="step_catering" model="event.builder.step">
+        <field name="config_id" ref="config_bedrijfsevent"/>
+        <field name="name">Catering</field>
+        <field name="description">Kies één formule. De prijs geldt per persoon.</field>
+        <field name="sequence">10</field>
+        <field name="selection_type">single</field>
+        <field name="is_required" eval="True"/>
+    </record>
+
+    <record id="step_zitplaatsen" model="event.builder.step">
+        <field name="config_id" ref="config_bedrijfsevent"/>
+        <field name="name">Zitplaatsen</field>
+        <field name="description">Eén stoel per gast, per dag gehuurd.</field>
+        <field name="sequence">20</field>
+        <field name="selection_type">single</field>
+        <field name="is_required" eval="True"/>
+    </record>
+
+    <record id="step_tafels" model="event.builder.step">
+        <field name="config_id" ref="config_bedrijfsevent"/>
+        <field name="name">Tafels</field>
+        <field name="description">Wij rekenen automatisch het juiste aantal uit.</field>
+        <field name="sequence">30</field>
+        <field name="selection_type">single</field>
+    </record>
+
+    <record id="step_extras" model="event.builder.step">
+        <field name="config_id" ref="config_bedrijfsevent"/>
+        <field name="name">Extra's</field>
+        <field name="description">Meerdere keuzes mogelijk.</field>
+        <field name="sequence">40</field>
+        <field name="selection_type">multi</field>
+    </record>
+
+    <!-- ============ OPTIES ============ -->
+    <!--
+      Let op hoe qty_mode en qty_factor samen de hoeveelheid bepalen:
+      - catering: per_person x 1, NIET per dag (je eet één keer)
+      - stoelen : per_person x 1, WEL per dag (huur)
+      - tafels  : per_x (1 statafel per 5 gasten, 1 bankettafel per 8), per dag
+      - extra's : fixed 1 stuk, per dag
+    -->
+
+    <record id="option_walking_dinner" model="event.builder.option">
+        <field name="step_id" ref="step_catering"/>
+        <field name="product_id" ref="product_walking_dinner"/>
+        <field name="name">Walking dinner</field>
+        <field name="description">Vijf gangen, rondlopend geserveerd.</field>
+        <field name="sequence">10</field>
+        <field name="qty_mode">per_person</field>
+        <field name="qty_factor">1</field>
+    </record>
+
+    <record id="option_bbq" model="event.builder.option">
+        <field name="step_id" ref="step_catering"/>
+        <field name="product_id" ref="product_bbq"/>
+        <field name="name">BBQ</field>
+        <field name="description">Vlees, vis en vega, inclusief garnituur.</field>
+        <field name="sequence">20</field>
+        <field name="qty_mode">per_person</field>
+        <field name="qty_factor">1</field>
+    </record>
+
+    <record id="option_broodjes" model="event.builder.option">
+        <field name="step_id" ref="step_catering"/>
+        <field name="product_id" ref="product_broodjes"/>
+        <field name="name">Broodjeslunch</field>
+        <field name="description">Belegde broodjes, soep en fruit.</field>
+        <field name="sequence">30</field>
+        <field name="qty_mode">per_person</field>
+        <field name="qty_factor">1</field>
+    </record>
+
+    <record id="option_stoel_klap" model="event.builder.option">
+        <field name="step_id" ref="step_zitplaatsen"/>
+        <field name="product_id" ref="product_stoel_klap"/>
+        <field name="name">Klapstoel wit</field>
+        <field name="description">Praktisch en stapelbaar.</field>
+        <field name="sequence">10</field>
+        <field name="qty_mode">per_person</field>
+        <field name="qty_factor">1</field>
+        <field name="charge_per_day" eval="True"/>
+    </record>
+
+    <record id="option_stoel_design" model="event.builder.option">
+        <field name="step_id" ref="step_zitplaatsen"/>
+        <field name="product_id" ref="product_stoel_design"/>
+        <field name="name">Designstoel eiken</field>
+        <field name="description">Voor wie het net iets mooier wil.</field>
+        <field name="sequence">20</field>
+        <field name="qty_mode">per_person</field>
+        <field name="qty_factor">1</field>
+        <field name="charge_per_day" eval="True"/>
+    </record>
+
+    <record id="option_statafel" model="event.builder.option">
+        <field name="step_id" ref="step_tafels"/>
+        <field name="product_id" ref="product_statafel"/>
+        <field name="name">Statafels</field>
+        <field name="description">Eén statafel per 5 gasten.</field>
+        <field name="sequence">10</field>
+        <field name="qty_mode">per_x</field>
+        <field name="qty_factor">5</field>
+        <field name="charge_per_day" eval="True"/>
+    </record>
+
+    <record id="option_bankettafel" model="event.builder.option">
+        <field name="step_id" ref="step_tafels"/>
+        <field name="product_id" ref="product_bankettafel"/>
+        <field name="name">Bankettafels</field>
+        <field name="description">Eén tafel per 8 gasten.</field>
+        <field name="sequence">20</field>
+        <field name="qty_mode">per_x</field>
+        <field name="qty_factor">8</field>
+        <field name="charge_per_day" eval="True"/>
+    </record>
+
+    <record id="option_geluid" model="event.builder.option">
+        <field name="step_id" ref="step_extras"/>
+        <field name="product_id" ref="product_geluid"/>
+        <field name="name">Geluidsinstallatie</field>
+        <field name="description">Inclusief draadloze micro en opbouw.</field>
+        <field name="sequence">10</field>
+        <field name="qty_mode">fixed</field>
+        <field name="qty_factor">1</field>
+        <field name="charge_per_day" eval="True"/>
+    </record>
+
+    <record id="option_verlichting" model="event.builder.option">
+        <field name="step_id" ref="step_extras"/>
+        <field name="product_id" ref="product_verlichting"/>
+        <field name="name">Sfeerverlichting</field>
+        <field name="description">Lichtslingers en uplighters.</field>
+        <field name="sequence">20</field>
+        <field name="qty_mode">fixed</field>
+        <field name="qty_factor">1</field>
+        <field name="charge_per_day" eval="True"/>
+    </record>
+
+</odoo>

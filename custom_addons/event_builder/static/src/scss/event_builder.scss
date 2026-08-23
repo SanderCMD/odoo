@@ -1,0 +1,34 @@
+// Bewust minimaal: de PoC leunt op Bootstrap, dat Odoo al meelevert.
+// Alleen wat Bootstrap niet uit zichzelf doet, staat hier.
+
+.o_event_builder {
+
+    .o_event_builder_option {
+        cursor: pointer;
+        transition: box-shadow .15s ease, transform .15s ease;
+
+        &:hover {
+            box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .1);
+            transform: translateY(-2px);
+        }
+
+        // Duidelijk zichtbaar wat gekozen is: dat is de kern van "in één
+        // oogopslag je event bouwen".
+        &.o_selected {
+            border-width: 2px;
+            box-shadow: 0 0 0 .2rem rgba(var(--o-color-1-rgb, 0, 122, 255), .15);
+        }
+    }
+
+    .o_event_builder_img {
+        height: 140px;
+        object-fit: cover;
+    }
+
+    // De prijs blijft meescrollen zolang de bezoeker aan het kiezen is.
+    // Dat is precies de eis: hij ziet de impact van elke klik meteen.
+    .o_event_builder_summary {
+        position: sticky;
+        top: 1rem;
+    }
+}

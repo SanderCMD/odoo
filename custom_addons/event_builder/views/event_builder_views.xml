@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+      Views zijn data, geen code: ze worden bij installatie als records in de
+      tabel `ir.ui.view` gestopt. Daarom staan ze in XML en niet in Python.
+      Het `id`-attribuut is de "external id" waarmee andere bestanden ernaar
+      kunnen verwijzen (bv. `event_builder.event_builder_config_view_form`).
+    -->
+
+    <!-- ============ CONFIGURATOR ============ -->
+
+    <record id="event_builder_config_view_list" model="ir.ui.view">
+        <field name="name">event.builder.config.list</field>
+        <field name="model">event.builder.config</field>
+        <field name="arch" type="xml">
+            <!-- In Odoo 17+ heet de lijstweergave <list> (vroeger <tree>). -->
+            <list string="Configurators">
+                <!-- widget="handle" maakt van sequence een sleepbaar handvat. -->
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="step_count" string="Stappen"/>
+                <field name="website_id" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="event_builder_config_view_form" model="ir.ui.view">
+        <field name="name">event.builder.config.form</field>
+        <field name="model">event.builder.config</field>
+        <field name="arch" type="xml">
+            <form string="Configurator">
+                <sheet>
+                    <!-- De archief-badge verschijnt automatisch dankzij `active`. -->
+                    <widget name="web_ribbon" title="Gearchiveerd" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="bv. Bedrijfsevent"/></h1>
+                    </div>
+                    <group>
+                        <group string="Publicatie">
+                            <field name="website_id"/>
+                            <field name="active" invisible="1"/>
+                            <field name="min_lead_days"/>
+                        </group>
+                        <group string="Aantal personen">
+                            <field name="guest_label"/>
+                            <field name="guest_min"/>
+                            <field name="guest_max"/>
+                            <field name="guest_default"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Stappen" name="steps">
+                            <!--
+                              Een One2many met een inline <list>: je bewerkt de
+                              gekoppelde records rechtstreeks in dit formulier.
+                              De volgorde die je hier sleept is de volgorde op
+                              de website.
+                            -->
+                            <field name="step_ids">
+                                <list string="Stappen">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="selection_type"/>
+                                    <field name="is_required"/>
+                                    <field name="option_count" string="Opties"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="event_builder_config_action" model="ir.actions.act_window">
+        <field name="name">Event Builder</field>
+        <field name="res_model">event.builder.config</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Maak je eerste configurator
+            </p>
+            <p>
+                Een configurator is de een-pagina-vragenlijst waarmee een
+                bezoeker zijn event samenstelt en meteen een prijs ziet.
+            </p>
+        </field>
+    </record>
+
+    <!-- ============ STAP ============ -->
+
+    <record id="event_builder_step_view_form" model="ir.ui.view">
+        <field name="name">event.builder.step.form</field>
+        <field name="model">event.builder.step</field>
+        <field name="arch" type="xml">
+            <form string="Stap">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="bv. Catering"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="selection_type"/>
+                            <field name="is_required"/>
+                        </group>
+                        <group>
+                            <field name="config_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <field name="description" placeholder="Uitleg voor de bezoeker..."/>
+                    <notebook>
+                        <page string="Opties" name="options">
+                            <field name="option_ids">
+                                <list string="Opties" editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="product_id"/>
+                                    <field name="name"/>
+                                    <field name="qty_mode"/>
+                                    <field name="qty_factor"/>
+                                    <field name="charge_per_day"/>
+                                    <field name="list_price" widget="monetary"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============ OPTIE ============ -->
+
+    <record id="event_builder_option_view_form" model="ir.ui.view">
+        <field name="name">event.builder.option.form</field>
+        <field name="model">event.builder.option</field>
+        <field name="arch" type="xml">
+            <form string="Optie">
+                <sheet>
+                    <field name="image" widget="image" class="oe_avatar"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group string="Product">
+                            <field name="product_id"/>
+                            <field name="list_price" widget="monetary"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group string="Hoeveelheid">
+                            <field name="qty_mode"/>
+                            <field name="qty_factor"/>
+                            <field name="charge_per_day"/>
+                        </group>
+                    </group>
+                    <field name="description" placeholder="Korte omschrijving voor op de website..."/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============ OFFERTE: extra tabblad met de eventgegevens ============ -->
+
+    <record id="sale_order_view_form_event" model="ir.ui.view">
+        <field name="name">sale.order.form.event.builder</field>
+        <field name="model">sale.order</field>
+        <!--
+          inherit_id + xpath = "erf de bestaande view en pas ze aan".
+          Zo hoef je de originele Odoo-view niet te kopieren; toekomstige
+          Odoo-updates aan die view blijven gewoon doorwerken.
+        -->
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='other_information']" position="after">
+                <page string="Event" name="event_builder"
+                      invisible="not event_builder_config_id and not event_delivery_date">
+                    <group>
+                        <group string="Planning">
+                            <field name="event_delivery_date"/>
+                            <field name="event_pickup_date"/>
+                            <field name="event_duration_days"/>
+                        </group>
+                        <group string="Details">
+                            <field name="event_guest_count"/>
+                            <field name="event_zip"/>
+                            <field name="event_builder_config_id" readonly="1"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

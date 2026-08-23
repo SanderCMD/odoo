@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+      Menu's zijn ook data (`ir.ui.menu`). `parent` verwijst naar het
+      Configuratie-menu van de Verkoop-app, dus onze configurator verschijnt
+      netjes tussen de andere verkoopinstellingen in plaats van als losse app.
+    -->
+    <menuitem id="menu_event_builder_config"
+        name="Event Builder"
+        parent="sale.menu_sale_config"
+        action="event_builder_config_action"
+        groups="sales_team.group_sale_manager"
+        sequence="80"/>
+
+</odoo>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+      ============================================================
+      1. Het snippet zelf: de HTML die op de pagina terechtkomt
+      ============================================================
+      Dit is bewust een bijna lege doos. De echte inhoud wordt door
+      JavaScript in `.o_event_builder_mount` gerenderd zodra de pagina laadt.
+
+      Waarom zo weinig HTML? Omdat de inhoud dynamisch is. Zou de HTML hier
+      de stappen en opties bevatten, dan zou die bevroren worden op het
+      moment dat je het blok op de pagina sleept - en dan zou een nieuwe optie
+      in het ERP NIET meer op de website verschijnen. Precies wat we niet
+      willen.
+
+      `data-config-id` is het enige wat de website-beheerder instelt: welke
+      configurator dit blok toont.
+    -->
+    <template id="s_event_builder" name="Event Builder">
+        <section class="s_event_builder pt40 pb40" data-config-id="">
+            <div class="container">
+                <!--
+                  Het aanhechtingspunt voor de JavaScript-component.
+                  o_not_editable zorgt dat de website-editor er niet in
+                  probeert te typen.
+                -->
+                <div class="o_event_builder_mount o_not_editable"/>
+            </div>
+        </section>
+    </template>
+
+    <!--
+      ============================================================
+      2. Het snippet aanbieden in het "Blokken"-paneel van de editor
+      ============================================================
+      We erven de bestaande snippetlijst van de website-module en hangen onze
+      ingang achteraan in de categorie "Structure" (waar alle blokken staan
+      die een volledige sectie beslaan).
+
+      We mikken bewust op de container `snippet_structure` en niet op een van
+      de `*_hook`-ankerpunten: die hooks worden door andere modules met
+      `position="replace"` opgeslokt, waardoor onze xpath zou breken zodra
+      zo'n module mee geinstalleerd is.
+
+      `group="catalog"` bepaalt onder welke categorie het blok in het
+      zijpaneel van de editor verschijnt.
+    -->
+    <template id="snippets" inherit_id="website.snippets" name="Event Builder snippets">
+        <xpath expr="//snippets[@id='snippet_structure']" position="inside">
+            <t t-snippet="event_builder.s_event_builder"
+               string="Event Builder"
+               group="catalog"/>
+        </xpath>
+    </template>
+
+</odoo>
