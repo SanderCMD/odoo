@@ -34,6 +34,12 @@ export class EventBuilderSnippet extends Interaction {
         if (!this.mountEl) {
             return;
         }
+        // De tijdelijke inhoud uit het snippet weghalen; vanaf hier neemt de
+        // OWL-component het over. We doen dit pas in start() en niet in de
+        // template, zodat het blok in de editor en bij een trage verbinding
+        // toch iets toont.
+        this.el.querySelector('.o_event_builder_placeholder')?.remove();
+
         this.mountComponent(this.mountEl, EventBuilder, {
             configId: this.configId,
         });

@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1090" height="460" viewBox="0 0 1090 460" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <rect width="1090" height="460" fill="#FFFFFF"/>
+
+  <!-- ================= LINKS: de bouwblokken ================= -->
+
+  <!-- Kaart: wanneer en waar -->
+  <rect x="40" y="34" width="660" height="104" rx="6" fill="#FFFFFF" stroke="#DEE2E6"/>
+  <text x="64" y="64" font-size="19" font-weight="600" fill="#212529">Wanneer en waar?</text>
+  <rect x="64" y="80" width="196" height="34" rx="4" fill="#F8F9FA" stroke="#DEE2E6"/>
+  <text x="76" y="102" font-size="13" fill="#6C757D">12/09/2026</text>
+  <rect x="272" y="80" width="196" height="34" rx="4" fill="#F8F9FA" stroke="#DEE2E6"/>
+  <text x="284" y="102" font-size="13" fill="#6C757D">14/09/2026</text>
+  <rect x="480" y="80" width="196" height="34" rx="4" fill="#F8F9FA" stroke="#DEE2E6"/>
+  <text x="492" y="102" font-size="13" fill="#6C757D">150 personen</text>
+
+  <!-- Stap: catering -->
+  <text x="40" y="176" font-size="19" font-weight="600" fill="#212529">Catering</text>
+  <rect x="40" y="190" width="206" height="112" rx="6" fill="#FFFFFF" stroke="#DEE2E6"/>
+  <rect x="40" y="190" width="206" height="48" rx="6" fill="#EDEFF1"/>
+  <text x="58" y="266" font-size="14" font-weight="600" fill="#212529">Walking dinner</text>
+  <rect x="58" y="278" width="104" height="7" rx="3.5" fill="#E9ECEF"/>
+
+  <rect x="266" y="190" width="206" height="112" rx="6" fill="#FFFFFF" stroke="#017E84" stroke-width="2"/>
+  <rect x="266" y="190" width="206" height="48" rx="6" fill="#CCE9EA"/>
+  <text x="284" y="266" font-size="14" font-weight="600" fill="#212529">BBQ formule</text>
+  <rect x="284" y="278" width="122" height="7" rx="3.5" fill="#E9ECEF"/>
+  <circle cx="452" cy="208" r="11" fill="#017E84"/>
+  <path d="M446.5 208 l4 4 l7 -7.5" stroke="#FFFFFF" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect x="492" y="190" width="206" height="112" rx="6" fill="#FFFFFF" stroke="#DEE2E6"/>
+  <rect x="492" y="190" width="206" height="48" rx="6" fill="#EDEFF1"/>
+  <text x="510" y="266" font-size="14" font-weight="600" fill="#212529">Broodjeslunch</text>
+  <rect x="510" y="278" width="90" height="7" rx="3.5" fill="#E9ECEF"/>
+
+  <!-- Stap: zitplaatsen -->
+  <text x="40" y="348" font-size="19" font-weight="600" fill="#212529">Zitplaatsen</text>
+  <rect x="40" y="362" width="206" height="62" rx="6" fill="#FFFFFF" stroke="#017E84" stroke-width="2"/>
+  <rect x="58" y="380" width="112" height="9" rx="4.5" fill="#CCE9EA"/>
+  <rect x="58" y="398" width="72" height="7" rx="3.5" fill="#E9ECEF"/>
+  <rect x="266" y="362" width="206" height="62" rx="6" fill="#FFFFFF" stroke="#DEE2E6"/>
+  <rect x="284" y="380" width="112" height="9" rx="4.5" fill="#E9ECEF"/>
+  <rect x="284" y="398" width="72" height="7" rx="3.5" fill="#E9ECEF"/>
+  <rect x="492" y="362" width="206" height="62" rx="6" fill="#FFFFFF" stroke="#DEE2E6"/>
+  <rect x="510" y="380" width="112" height="9" rx="4.5" fill="#E9ECEF"/>
+  <rect x="510" y="398" width="72" height="7" rx="3.5" fill="#E9ECEF"/>
+
+  <!-- ================= RECHTS: het prijspaneel ================= -->
+
+  <rect x="740" y="34" width="310" height="390" rx="6" fill="#FFFFFF" stroke="#DEE2E6"/>
+  <text x="764" y="66" font-size="19" font-weight="600" fill="#212529">Jouw event</text>
+  <text x="764" y="90" font-size="12" fill="#6C757D">150 personen &#183; 2 dagen</text>
+
+  <line x1="764" y1="104" x2="1026" y2="104" stroke="#E9ECEF"/>
+
+  <text x="764" y="130" font-size="13" fill="#212529">BBQ formule</text>
+  <text x="1026" y="130" font-size="13" fill="#212529" text-anchor="end">4.800,00</text>
+  <text x="764" y="146" font-size="11" fill="#ADB5BD">150 x 32,00</text>
+
+  <text x="764" y="176" font-size="13" fill="#212529">Klapstoel wit</text>
+  <text x="1026" y="176" font-size="13" fill="#212529" text-anchor="end">750,00</text>
+  <text x="764" y="192" font-size="11" fill="#ADB5BD">300 x 2,50</text>
+
+  <text x="764" y="222" font-size="13" fill="#212529">Bankettafels</text>
+  <text x="1026" y="222" font-size="13" fill="#212529" text-anchor="end">684,00</text>
+  <text x="764" y="238" font-size="11" fill="#ADB5BD">38 x 18,00</text>
+
+  <line x1="764" y1="262" x2="1026" y2="262" stroke="#E9ECEF"/>
+
+  <text x="764" y="286" font-size="12" fill="#6C757D">Excl. btw</text>
+  <text x="1026" y="286" font-size="12" fill="#6C757D" text-anchor="end">6.234,00</text>
+  <text x="764" y="308" font-size="12" fill="#6C757D">Btw</text>
+  <text x="1026" y="308" font-size="12" fill="#6C757D" text-anchor="end">1.309,14</text>
+
+  <line x1="764" y1="326" x2="1026" y2="326" stroke="#DEE2E6"/>
+
+  <text x="764" y="356" font-size="18" font-weight="700" fill="#212529">Totaal</text>
+  <text x="1026" y="356" font-size="18" font-weight="700" fill="#017E84" text-anchor="end">7.543,14</text>
+
+  <rect x="764" y="378" width="262" height="34" rx="4" fill="#714B67"/>
+  <text x="895" y="400" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="middle">Bestellen</text>
+</svg>

@@ -21,6 +21,21 @@
         <section class="s_event_builder pt40 pb40" data-config-id="">
             <div class="container">
                 <!--
+                  Een zichtbare tijdelijke inhoud. Nodig omdat de editor elk
+                  blok LIVE rendert in zijn voorbeeldvenster: een blok dat leeg
+                  begint, is daar letterlijk onzichtbaar en dus onvindbaar.
+                  De interaction verwijdert dit zodra de echte configurator
+                  gemonteerd is.
+                -->
+                <div class="o_event_builder_placeholder text-center py-5">
+                    <h3 class="mb-1">Stel je event samen</h3>
+                    <p class="text-muted mb-0">
+                        Kies datum, aantal personen en formule - de prijs
+                        rekent live mee.
+                    </p>
+                </div>
+
+                <!--
                   Het aanhechtingspunt voor de JavaScript-component.
                   o_not_editable zorgt dat de website-editor er niet in
                   probeert te typen.
@@ -48,9 +63,27 @@
     -->
     <template id="snippets" inherit_id="website.snippets" name="Event Builder snippets">
         <xpath expr="//snippets[@id='snippet_structure']" position="inside">
+            <!--
+              t-image-preview : de afbeelding die het "Blok toevoegen"-venster
+                            toont. Zonder deze rendert Odoo het blok daar LIVE
+                            (zie snippet_viewer.xml) - en omdat onze inhoud pas
+                            door JavaScript gevuld wordt, zag je enkel de
+                            placeholder. Met deze afbeelding tonen we waar het
+                            blok echt voor dient.
+              t-thumbnail : het kleine icoon voor de zijbalk en voor het
+                            opslaan als eigen blok.
+              group       : onder welke categorie het blok staat. Je vindt het
+                            dus NIET in de vlakke lijst, maar door in het
+                            Blokken-paneel op "Catalog" te klikken.
+              keywords    : waarop het zoekveld van het paneel matcht.
+            -->
             <t t-snippet="event_builder.s_event_builder"
                string="Event Builder"
-               group="catalog"/>
+               group="catalog"
+               t-thumbnail="/event_builder/static/src/img/snippets_thumbs/s_event_builder.svg"
+               t-image-preview="/event_builder/static/src/img/snippets_previews/s_event_builder_preview.svg">
+                <keywords>event, configurator, offerte, prijs, catering, bouwblokken, samenstellen</keywords>
+            </t>
         </xpath>
     </template>
 

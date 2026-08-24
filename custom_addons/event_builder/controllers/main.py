@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from odoo import _, fields
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools import email_normalize
 from odoo.http import Controller, request, route
 
 
@@ -97,7 +98,7 @@ class EventBuilderController(Controller):
     def event_builder_config(self, config_id=None, **kwargs):
         """Stap 1: de configurator haalt bij het laden zijn structuur op."""
         config = self._get_config(config_id)
-        return config._get_website_data()
+        return config._get_website_data(pricelist=request.pricelist)
 
     @route('/event_builder/price', type='jsonrpc', auth='public', website=True, readonly=True)
     def event_builder_price(
@@ -123,49 +124,72 @@ class EventBuilderController(Controller):
         quote['days'] = selection['days']
         return quote
 
+    def _get_partner(self, contact):
+        """Bepaal de klant voor wie we de offerte maken.
+
+        Is de bezoeker ingelogd, dan gebruiken we zijn eigen contact. Is hij
+        anoniem, dan maken we ALTIJD een nieuw contact aan - we zoeken bewust
+        niet op e-mailadres. Zouden we dat wel doen, dan kan iedereen die het
+        e-mailadres van een bestaande klant kent een offerte aan diens contact
+        hangen, en die daarna via het portaal openen. Dubbele contacten zijn
+        vervelend; een datalek is erger.
+        """
+        if not request.env.user._is_public():
+            return request.env.user.partner_id
+
+        name = (contact.get('name') or '').strip()
+        email = email_normalize(contact.get('email') or '')
+        if not name:
+            raise ValidationError(_("Vul je naam in."))
+        if not email:
+            raise ValidationError(_("Vul een geldig e-mailadres in."))
+
+        return request.env['res.partner'].sudo().create({
+            'name': name,
+            'email': email,
+            'phone': (contact.get('phone') or '').strip() or False,
+            'company_name': (contact.get('company_name') or '').strip() or False,
+            'zip': (contact.get('zip_code') or '').strip() or False,
+            # Zo herken je later in het ERP waar dit contact vandaan komt.
+            'comment': _("Aangemaakt via de Event Builder op de website."),
+        })
+
     @route('/event_builder/submit', type='jsonrpc', auth='public', website=True)
     def event_builder_submit(
         self, config_id=None, guest_count=0, date_from=None, date_to=None,
-        zip_code=None, option_ids=None, **kwargs
+        zip_code=None, option_ids=None, contact=None, **kwargs
     ):
-        """Stap 3: zet de selectie om in een echt winkelmandje.
+        """Stap 3: zet de selectie om in een offerte en stuur de klant erheen.
 
-        Pas hier ontstaat er een `sale.order` in de database. `request.cart`
-        geeft het lopende winkelmandje van deze bezoeker terug; bestaat het
-        nog niet, dan maken we er een aan. Daarna gebruiken we `_cart_add`,
-        exact dezelfde methode als de gewone webshopknop, zodat kortingen,
-        prijslijsten en btw identiek behandeld worden.
+        Pas hier ontstaat er iets in de database. De bezoeker komt terecht op
+        zijn eigen offertepagina in het klantenportaal, waar Odoo hem zonder
+        verdere code de knop "Betaal het voorschot" toont.
+
+        De toegang verloopt via een `access_token` in de URL: een lang, willekeurig
+        token dat aan de offerte hangt. Daarmee kan een niet-ingelogde klant zijn
+        eigen offerte bekijken en betalen, en niets anders.
         """
         config = self._get_config(config_id)
         selection = self._parse_selection(
             config, guest_count, date_from, date_to, option_ids)
 
-        line_values = config._get_line_values(
-            selection['option_ids'], selection['guest_count'], selection['days'])
-        if not line_values:
-            raise ValidationError(_("Selecteer minstens één optie."))
+        contact = dict(contact or {}, zip_code=zip_code)
+        partner = self._get_partner(contact)
 
-        order_sudo = request.cart or request.website._create_cart()
-
-        # We beginnen met een leeg mandje: een event is één geheel, geen
-        # verzameling losse artikelen die je stap voor stap bijeenraapt.
-        order_sudo.order_line.unlink()
-
-        order_sudo.write({
-            'event_builder_config_id': config.id,
-            'event_guest_count': selection['guest_count'],
-            'event_delivery_date': selection['date_from'],
-            'event_pickup_date': selection['date_to'],
-            'event_zip': zip_code,
-        })
-
-        for line in line_values:
-            order_sudo._cart_add(
-                product_id=line['product_id'],
-                quantity=line['product_uom_qty'],
-            )
+        order_sudo = config._create_quotation(
+            partner=partner,
+            option_ids=selection['option_ids'],
+            guest_count=selection['guest_count'],
+            days=selection['days'],
+            logistics={
+                'date_from': selection['date_from'],
+                'date_to': selection['date_to'],
+                'zip_code': zip_code,
+            },
+        )
 
         return {
             'order_id': order_sudo.id,
-            'redirect_url': '/shop/cart',
+            # get_portal_url() zet het access_token er zelf in.
+            'redirect_url': order_sudo.get_portal_url(),
         }

@@ -1,4 +1,4 @@
-import { Component, onWillStart, useState } from '@odoo/owl';
+import { Component, onWillStart, useRef, useState } from '@odoo/owl';
 import { rpc } from '@web/core/network/rpc';
 import { formatCurrency } from '@web/core/currency';
 import { debounce } from '@web/core/utils/timing';
@@ -26,6 +26,12 @@ export class EventBuilder extends Component {
     static defaultProps = { configId: 0 };
 
     setup() {
+        // Eén verwijzing naar de buitenste div. Van daaruit zoeken we de
+        // stappen en strips op via data-attributen. Dat is eenvoudiger dan een
+        // aparte ref per stap, want het aantal stappen komt pas uit de
+        // database en ligt dus niet op voorhand vast.
+        this.rootRef = useRef('root');
+
         this.state = useState({
             loading: true,
             error: null,
@@ -37,6 +43,16 @@ export class EventBuilder extends Component {
             dateTo: '',
             zip: '',
             selectedOptionIds: [],
+
+            // Contactgegevens. Bewust hier in het rechterpaneel en niet op een
+            // aparte pagina: dat scheelt de bezoeker een stap, en het is
+            // dezelfde informatie die de gewone webshop-checkout ook vraagt.
+            contact: {
+                name: '',
+                email: '',
+                phone: '',
+                company_name: '',
+            },
 
             // Wat de server terugrekende
             quote: null,
@@ -99,6 +115,30 @@ export class EventBuilder extends Component {
         );
     }
 
+    /** Het bedrag dat de klant nu online betaalt om te boeken. */
+    get prepaymentAmount() {
+        return this.state.quote?.prepayment_amount || 0;
+    }
+
+    /** Het voorschotpercentage als geheel getal, bv. 30. */
+    get prepaymentPercent() {
+        return Math.round((this.state.quote?.prepayment_percent || 0) * 100);
+    }
+
+    get hasPrepayment() {
+        return this.prepaymentAmount > 0
+            && this.prepaymentAmount < (this.state.quote?.amount_total || 0);
+    }
+
+    /**
+     * Een oppervlakkige e-mailcontrole: genoeg om typfouten te vangen zonder
+     * geldige adressen te weigeren. De echte controle gebeurt op de server
+     * met `email_normalize`.
+     */
+    get isEmailValid() {
+        return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.state.contact.email.trim());
+    }
+
     get canSubmit() {
         return (
             !this.state.submitting
@@ -106,11 +146,55 @@ export class EventBuilder extends Component {
             && this.missingSteps.length === 0
             && !!this.state.dateFrom
             && !!this.state.dateTo
+            && !!this.state.contact.name.trim()
+            && this.isEmailValid
         );
     }
 
     isSelected(optionId) {
         return this.state.selectedOptionIds.includes(optionId);
+    }
+
+    /** Is er in deze stap al iets gekozen? Stuurt de vinkjes in de navigatie. */
+    isStepComplete(step) {
+        return step.options.some((option) => this.isSelected(option.id));
+    }
+
+    /**
+     * Schuif een strip een stuk op. We schuiven met 80% van de zichtbare
+     * breedte in plaats van met een vast aantal pixels: zo klopt de sprong
+     * op elk schermformaat, en blijft er telkens één kaartje half zichtbaar
+     * als hint dat er nog meer staat.
+     */
+    scrollStrip(stepId, direction) {
+        const stripEl = this.rootRef.el?.querySelector(`[data-strip="${stepId}"]`);
+        if (!stripEl) {
+            return;
+        }
+        stripEl.scrollBy({
+            left: direction * stripEl.clientWidth * 0.8,
+            behavior: 'smooth',
+        });
+    }
+
+    /** Spring naar een stap vanuit de navigatie bovenaan. */
+    goToStep(stepId) {
+        const stepEl = this.rootRef.el?.querySelector(`[data-step="${stepId}"]`);
+        stepEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    /**
+     * Toont de vaste balk onderaan op kleine schermen. Enkel zinvol zodra er
+     * iets gekozen is - een balk met een leeg totaal neemt alleen plaats in.
+     */
+    get showMobileBar() {
+        return !!this.state.quote?.lines?.length;
+    }
+
+    /** Spring naar het prijspaneel: gebruikt door de mobiele balk. */
+    goToSummary() {
+        const summaryEl = this.rootRef.el?.querySelector('[data-summary]');
+        summaryEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     /**
@@ -197,7 +281,11 @@ export class EventBuilder extends Component {
                 date_to: this.state.dateTo,
                 zip_code: this.state.zip,
                 option_ids: this.state.selectedOptionIds,
+                contact: this.state.contact,
             });
+            // De server stuurt ons naar de offerte in het klantenportaal, met
+            // een access_token in de URL. Daar staat de knop om het voorschot
+            // te betalen.
             window.location = result.redirect_url;
         } catch (error) {
             this.state.error = error?.data?.message || 'Er ging iets mis. Probeer opnieuw.';
@@ -205,10 +293,18 @@ export class EventBuilder extends Component {
         }
     }
 
+    /**
+     * Bedragen opmaken in de valuta van de bezoeker.
+     *
+     * We nemen bij voorkeur de valuta uit de laatste prijsberekening, en
+     * vallen terug op die van de configurator. Dat tweede is nodig om de
+     * stukprijzen op de kaartjes al te tonen voordat er iets gekozen is.
+     */
     formatPrice(amount) {
-        if (!this.state.quote) {
+        const currencyId = this.state.quote?.currency_id ?? this.state.config?.currency_id;
+        if (!currencyId) {
             return '';
         }
-        return formatCurrency(amount, this.state.quote.currency_id);
+        return formatCurrency(amount, currencyId);
     }
 }

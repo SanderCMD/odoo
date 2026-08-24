@@ -3,32 +3,158 @@
 
 .o_event_builder {
 
+    // ------------------------------------------------------------------
+    // Stapnavigatie
+    // ------------------------------------------------------------------
+    // Blijft bovenaan plakken tijdens het scrollen. De achtergrond is nodig:
+    // zonder die zouden de kaartjes er onderdoor schuiven en er doorheen
+    // schemeren.
+    .o_event_builder_nav {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        padding: .5rem 0;
+        background: var(--o-body-bg, #fff);
+    }
+
+    // ------------------------------------------------------------------
+    // Horizontale strip per stap
+    // ------------------------------------------------------------------
+    .o_event_builder_strip {
+        display: flex;
+        gap: 1rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        // Elk kaartje klikt netjes vast aan de linkerrand, zodat je nooit
+        // met een half afgesneden kaart blijft staan.
+        scroll-snap-type: x mandatory;
+        // Ruimte onderaan voor de scrollbalk, zodat die de kaartjes niet
+        // overlapt.
+        padding: .25rem .25rem 1rem;
+        margin: -.25rem -.25rem 0;
+        scrollbar-width: thin;
+
+        // De scrollbalk is hier een functie, geen decoratie: hij vertelt de
+        // bezoeker hoeveel er nog volgt. Dus subtiel stylen, niet verbergen.
+        &::-webkit-scrollbar {
+            height: 8px;
+        }
+        &::-webkit-scrollbar-thumb {
+            border-radius: 4px;
+            background: rgba(0, 0, 0, .18);
+        }
+        &::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        > * {
+            // Vaste breedte, niet krimpen: dit maakt de rij scrollbaar in
+            // plaats van dat alles samengeperst wordt.
+            flex: 0 0 210px;
+            scroll-snap-align: start;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Optiekaartje
+    // ------------------------------------------------------------------
     .o_event_builder_option {
+        position: relative;
         cursor: pointer;
-        transition: box-shadow .15s ease, transform .15s ease;
+        padding: 0;
+        overflow: hidden;
+        text-align: left;
+        transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
 
         &:hover {
             box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .1);
             transform: translateY(-2px);
         }
 
+        // Zichtbare focus voor wie met het toetsenbord navigeert.
+        &:focus-visible {
+            outline: 2px solid var(--o-color-1, #017E84);
+            outline-offset: 2px;
+        }
+
         // Duidelijk zichtbaar wat gekozen is: dat is de kern van "in één
         // oogopslag je event bouwen".
         &.o_selected {
-            border-width: 2px;
-            box-shadow: 0 0 0 .2rem rgba(var(--o-color-1-rgb, 0, 122, 255), .15);
+            border-color: var(--o-color-1, #017E84);
+            box-shadow: 0 0 0 2px var(--o-color-1, #017E84) inset;
+        }
+
+        .card-body {
+            padding: .75rem;
         }
     }
 
-    .o_event_builder_img {
-        height: 140px;
-        object-fit: cover;
+    // Het vinkje op een gekozen kaartje.
+    .o_event_builder_check {
+        position: absolute;
+        top: .5rem;
+        right: .5rem;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        color: #fff;
+        font-size: .75rem;
+        background: var(--o-color-1, #017E84);
     }
 
-    // De prijs blijft meescrollen zolang de bezoeker aan het kiezen is.
-    // Dat is precies de eis: hij ziet de impact van elke klik meteen.
+    .o_event_builder_img {
+        height: 120px;
+        object-fit: cover;
+        width: 100%;
+    }
+
+    // Omschrijvingen afkappen op twee regels, zodat alle kaartjes in een strip
+    // even hoog blijven en de rij rustig oogt.
+    .o_event_builder_desc {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    // ------------------------------------------------------------------
+    // Prijspaneel
+    // ------------------------------------------------------------------
+    // Blijft meescrollen zolang de bezoeker aan het kiezen is. Dat is precies
+    // de eis: hij ziet de impact van elke klik meteen.
     .o_event_builder_summary {
         position: sticky;
         top: 1rem;
+    }
+
+    // ------------------------------------------------------------------
+    // Mobiele balk
+    // ------------------------------------------------------------------
+    .o_event_builder_mobile_bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1030;
+        padding: .75rem 1rem;
+        // Rekening houden met de veilige zone onderaan bij iPhones met een
+        // afgeronde rand: zonder dit valt de knop deels achter de home-balk.
+        padding-bottom: calc(.75rem + env(safe-area-inset-bottom, 0px));
+        background: var(--o-body-bg, #fff);
+        border-top: 1px solid rgba(0, 0, 0, .1);
+        box-shadow: 0 -.25rem .75rem rgba(0, 0, 0, .08);
+    }
+    // De balk ligt vast onderaan het scherm en zou dus de laatste regels van
+    // de pagina bedekken. We zetten er lucht onder, maar alleen wanneer de
+    // balk er echt is - vandaar een klasse die de component zelf schakelt in
+    // plaats van een :has()-selector.
+    &.o_has_mobile_bar {
+        @include media-breakpoint-down(lg) {
+            padding-bottom: 6rem;
+        }
     }
 }

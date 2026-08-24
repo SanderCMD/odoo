@@ -50,6 +50,18 @@
                             <field name="guest_max"/>
                             <field name="guest_default"/>
                         </group>
+                        <group string="Voorschot">
+                            <field name="require_prepayment"/>
+                            <!--
+                              widget="percentage" toont 0,30 als "30%" en
+                              rekent de invoer terug om. Het onderliggende veld
+                              blijft een breuk, net zoals Odoo's eigen
+                              prepayment_percent op de offerte.
+                            -->
+                            <field name="prepayment_percent"
+                                   widget="percentage"
+                                   invisible="not require_prepayment"/>
+                        </group>
                     </group>
                     <notebook>
                         <page string="Stappen" name="steps">
@@ -97,6 +109,19 @@
         <field name="model">event.builder.step</field>
         <field name="arch" type="xml">
             <form string="Stap">
+                <header>
+                    <!--
+                      type="object" roept de gelijknamige Python-methode op het
+                      huidige record aan. Dat is het verschil met
+                      type="action" (opent een ir.actions.act_window).
+                    -->
+                    <button name="action_add_missing_variants"
+                            type="object"
+                            string="Ontbrekende varianten toevoegen"
+                            class="btn-secondary"
+                            invisible="not option_ids"
+                            help="Maakt een optie voor elke productvariant die nog niet in deze stap staat."/>
+                </header>
                 <sheet>
                     <div class="oe_title">
                         <label for="name"/>
@@ -189,6 +214,23 @@
                             <field name="event_guest_count"/>
                             <field name="event_zip"/>
                             <field name="event_builder_config_id" readonly="1"/>
+                        </group>
+                        <group string="Voorschot" colspan="2">
+                            <!--
+                              `amount_paid` telt alleen transacties met status
+                              'done' of 'authorized'. Een openstaande
+                              bankoverschrijving ('pending') telt dus NIET mee -
+                              en dat klopt: het geld staat nog niet op je
+                              rekening.
+                            -->
+                            <field name="require_payment"/>
+                            <field name="prepayment_percent" widget="percentage"
+                                   invisible="not require_payment"/>
+                            <field name="event_prepayment_amount" widget="monetary"
+                                   invisible="not require_payment"/>
+                            <field name="amount_paid" widget="monetary"/>
+                            <field name="event_amount_due" widget="monetary"/>
+                            <field name="currency_id" invisible="1"/>
                         </group>
                     </group>
                 </page>

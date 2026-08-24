@@ -91,6 +91,21 @@
         <field name="is_published" eval="True"/>
     </record>
 
+    <!-- ============ INSTELLING: automatisch factureren ============ -->
+    <!--
+      Zet de instelling Verkoop > Facturatie > "Automatische factuur" aan.
+      Zonder deze parameter bevestigt Odoo de order na de voorschotbetaling
+      wel, maar maakt hij GEEN voorschotfactuur aan
+      (zie sale/models/payment_transaction.py, `_post_process`).
+
+      Staat hier bij de demodata omdat het een bedrijfskeuze is: in productie
+      zet je ze zelf aan of uit via de instellingen.
+    -->
+    <record id="config_automatic_invoice" model="ir.config_parameter">
+        <field name="key">sale.automatic_invoice</field>
+        <field name="value">True</field>
+    </record>
+
     <!-- ============ DE CONFIGURATOR ============ -->
 
     <record id="config_bedrijfsevent" model="event.builder.config">
@@ -99,6 +114,9 @@
         <field name="guest_min">20</field>
         <field name="guest_max">1000</field>
         <field name="min_lead_days">7</field>
+        <!-- 30% voorschot om de boeking te bevestigen, de rest achteraf. -->
+        <field name="require_prepayment" eval="True"/>
+        <field name="prepayment_percent">0.30</field>
     </record>
 
     <!-- ============ STAPPEN ============ -->

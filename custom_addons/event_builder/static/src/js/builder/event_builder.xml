@@ -15,7 +15,8 @@
   state verandert. Je hoeft nergens handmatig HTML te vervangen.
 -->
 <t t-name="event_builder.EventBuilder">
-    <div class="o_event_builder">
+    <div class="o_event_builder" t-ref="root"
+         t-att-class="{ 'o_has_mobile_bar': showMobileBar }">
 
         <div t-if="state.loading" class="text-center py-5">
             <span class="spinner-border" role="status"/>
@@ -69,38 +70,96 @@
                     </div>
                 </div>
 
-                <!-- De stappen uit het ERP. Voegt een beheerder daar een optie
-                     toe, dan staat ze na een refresh gewoon hier. -->
-                <div t-foreach="state.config.steps" t-as="step" t-key="step.id" class="mb-4">
-                    <h4 class="mb-1"><t t-esc="step.name"/>
-                        <span t-if="step.is_required" class="text-danger">*</span>
-                    </h4>
-                    <p t-if="step.description" class="text-muted small">
-                        <t t-esc="step.description"/>
-                    </p>
+                <!--
+                  Stapnavigatie. Blijft bovenaan plakken tijdens het scrollen,
+                  zodat de bezoeker altijd ziet hoeveel stappen er zijn, welke
+                  hij al ingevuld heeft, en rechtstreeks kan springen.
+                -->
+                <nav class="o_event_builder_nav d-flex flex-wrap gap-2 mb-4"
+                     aria-label="Stappen">
+                    <button t-foreach="state.config.steps" t-as="step" t-key="step.id"
+                            type="button"
+                            class="btn btn-sm rounded-pill"
+                            t-att-class="isStepComplete(step) ? 'btn-primary' : 'btn-outline-secondary'"
+                            t-on-click="() => this.goToStep(step.id)">
+                        <span t-if="isStepComplete(step)" class="fa fa-check me-1"/>
+                        <t t-esc="step.name"/>
+                    </button>
+                </nav>
 
-                    <div class="row g-3">
-                        <div t-foreach="step.options" t-as="option" t-key="option.id"
-                             class="col-sm-6 col-lg-4">
-                            <div class="card h-100 o_event_builder_option"
-                                 t-att-class="{ 'border-primary o_selected': isSelected(option.id) }"
-                                 t-on-click="() => this.toggleOption(step, option.id)">
-                                <img class="card-img-top o_event_builder_img"
-                                     t-att-src="option.image_url" t-att-alt="option.name"/>
-                                <div class="card-body">
-                                    <h6 class="card-title mb-1"><t t-esc="option.name"/></h6>
-                                    <p t-if="option.description" class="card-text small text-muted mb-0">
-                                        <t t-esc="option.description"/>
-                                    </p>
-                                </div>
-                            </div>
+                <!--
+                  De stappen uit het ERP. Voegt een beheerder daar een optie
+                  toe, dan staat ze na een refresh gewoon hier.
+
+                  Elke stap is een horizontaal schuivende strip in plaats van
+                  een raster. Zo blijft de pagina even lang bij 4 opties als
+                  bij 40: de hoogte volgt het aantal STAPPEN, niet het aantal
+                  producten. Zijwaarts scrollen binnen één categorie is ook de
+                  natuurlijke beweging om te vergelijken.
+                -->
+                <section t-foreach="state.config.steps" t-as="step" t-key="step.id"
+                         class="mb-4" t-att-data-step="step.id">
+                    <div class="d-flex align-items-end justify-content-between mb-2">
+                        <div>
+                            <h4 class="mb-0"><t t-esc="step.name"/>
+                                <span t-if="step.is_required" class="text-danger">*</span>
+                            </h4>
+                            <p t-if="step.description" class="text-muted small mb-0">
+                                <t t-esc="step.description"/>
+                            </p>
+                        </div>
+                        <!-- Pijlen alleen tonen als er echt iets te schuiven
+                             valt, en enkel op grotere schermen: op een gsm
+                             veeg je gewoon. -->
+                        <div t-if="step.options.length > 2"
+                             class="btn-group btn-group-sm d-none d-md-flex flex-shrink-0 ms-3">
+                            <button type="button" class="btn btn-outline-secondary"
+                                    t-att-aria-label="'Vorige ' + step.name"
+                                    t-on-click="() => this.scrollStrip(step.id, -1)">
+                                <span class="fa fa-chevron-left"/>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary"
+                                    t-att-aria-label="'Volgende ' + step.name"
+                                    t-on-click="() => this.scrollStrip(step.id, 1)">
+                                <span class="fa fa-chevron-right"/>
+                            </button>
                         </div>
                     </div>
-                </div>
+
+                    <div class="o_event_builder_strip" t-att-data-strip="step.id">
+                        <!-- Een <button> en geen <div>: zo werkt de
+                             configurator ook met het toetsenbord en met een
+                             schermlezer. -->
+                        <button t-foreach="step.options" t-as="option" t-key="option.id"
+                                type="button"
+                                class="card o_event_builder_option text-start"
+                                t-att-class="{ 'o_selected': isSelected(option.id) }"
+                                t-att-aria-pressed="isSelected(option.id) ? 'true' : 'false'"
+                                t-on-click="() => this.toggleOption(step, option.id)">
+                            <span class="o_event_builder_check" t-if="isSelected(option.id)">
+                                <span class="fa fa-check"/>
+                            </span>
+                            <img class="card-img-top o_event_builder_img"
+                                 t-att-src="option.image_url" t-att-alt="option.name"
+                                 loading="lazy"/>
+                            <span class="card-body">
+                                <span class="d-block fw-semibold"><t t-esc="option.name"/></span>
+                                <span t-if="option.description"
+                                      class="d-block small text-muted o_event_builder_desc">
+                                    <t t-esc="option.description"/>
+                                </span>
+                                <span class="d-block mt-2 small">
+                                    <span class="fw-bold" t-esc="formatPrice(option.unit_price)"/>
+                                    <span class="text-muted"> <t t-esc="option.price_label"/></span>
+                                </span>
+                            </span>
+                        </button>
+                    </div>
+                </section>
             </div>
 
             <!-- ============ RECHTS: de prijs, altijd zichtbaar ============ -->
-            <div class="col-lg-4">
+            <div class="col-lg-4" data-summary="1">
                 <div class="card o_event_builder_summary">
                     <div class="card-body">
                         <h4 class="card-title">Jouw event</h4>
@@ -149,6 +208,24 @@
                                 <span t-att-class="{ 'opacity-50': state.pricing }"
                                       t-esc="formatPrice(state.quote.amount_total)"/>
                             </div>
+
+                            <!-- Het voorschot. Alleen tonen wanneer het echt
+                                 een deelbetaling is: bij 100% zou "nu te
+                                 betalen" gelijk zijn aan het totaal en de
+                                 klant enkel verwarren. -->
+                            <div t-if="hasPrepayment"
+                                 class="d-flex justify-content-between mt-2 pt-2 border-top">
+                                <span class="fw-semibold">
+                                    Nu te betalen
+                                    <span class="text-muted fw-normal">
+                                        (<t t-esc="prepaymentPercent"/>%)
+                                    </span>
+                                </span>
+                                <span class="fw-semibold" t-esc="formatPrice(prepaymentAmount)"/>
+                            </div>
+                            <div t-if="hasPrepayment" class="text-muted small">
+                                Rest na afloop van je event.
+                            </div>
                         </div>
 
                         <div t-if="missingSteps.length" class="alert alert-info py-2 small mt-3 mb-0">
@@ -158,14 +235,78 @@
                             </t>
                         </div>
 
+                        <!-- Contactgegevens: vervangt de adresstap van een
+                             klassieke checkout. -->
+                        <div t-if="state.quote and state.quote.lines.length" class="mt-3">
+                            <hr/>
+                            <label class="form-label small mb-1" for="eb_name">Naam *</label>
+                            <input id="eb_name" type="text" class="form-control form-control-sm mb-2"
+                                   placeholder="Voor- en achternaam"
+                                   t-model="state.contact.name"/>
+
+                            <label class="form-label small mb-1" for="eb_email">E-mail *</label>
+                            <input id="eb_email" type="email" class="form-control form-control-sm mb-2"
+                                   t-att-class="{ 'is-invalid': state.contact.email and !isEmailValid }"
+                                   placeholder="jij@bedrijf.be"
+                                   t-model="state.contact.email"/>
+
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label small mb-1" for="eb_phone">Telefoon</label>
+                                    <input id="eb_phone" type="tel" class="form-control form-control-sm"
+                                           t-model="state.contact.phone"/>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small mb-1" for="eb_company">Bedrijf</label>
+                                    <input id="eb_company" type="text" class="form-control form-control-sm"
+                                           t-model="state.contact.company_name"/>
+                                </div>
+                            </div>
+                        </div>
+
                         <button class="btn btn-primary w-100 mt-3"
                                 t-att-disabled="!canSubmit"
                                 t-on-click="onSubmit">
                             <span t-if="state.submitting" class="spinner-border spinner-border-sm me-1"/>
-                            Bestellen
+                            <t t-if="hasPrepayment">
+                                Boek met <t t-esc="formatPrice(prepaymentAmount)"/> voorschot
+                            </t>
+                            <t t-else="">Bestellen</t>
                         </button>
+                        <div class="text-muted small text-center mt-2">
+                            Je krijgt eerst je offerte te zien - je betaalt pas daarna.
+                        </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!--
+          ============ MOBIEL: vaste balk onderaan ============
+          Op een gsm staat het prijspaneel onder alle stappen, dus zonder deze
+          balk zou de bezoeker eerst voorbij alles moeten scrollen om zijn
+          totaal te zien - net op het toestel waar mensen 's avonds rondkijken.
+
+          De knop stuurt naar het paneel in plaats van meteen te bestellen:
+          daar staan de contactgegevens die nog ingevuld moeten worden. Een
+          knop die soms bestelt en soms niet, is verwarrender dan een knop die
+          altijd hetzelfde doet.
+        -->
+        <div t-if="showMobileBar" class="o_event_builder_mobile_bar d-lg-none">
+            <div class="d-flex align-items-center justify-content-between gap-3">
+                <div class="lh-sm">
+                    <div class="fw-bold" t-esc="formatPrice(state.quote.amount_total)"/>
+                    <div t-if="hasPrepayment" class="small text-muted">
+                        nu <t t-esc="formatPrice(prepaymentAmount)"/>
+                        (<t t-esc="prepaymentPercent"/>%)
+                    </div>
+                    <div t-else="" class="small text-muted">
+                        <t t-esc="state.guestCount"/> personen
+                    </div>
+                </div>
+                <button class="btn btn-primary flex-shrink-0" t-on-click="goToSummary">
+                    Bekijk &amp; boek
+                </button>
             </div>
         </div>
     </div>

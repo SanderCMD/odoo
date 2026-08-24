@@ -1,5 +1,6 @@
 # Part of the Event Builder module.
-from odoo import Command, api, fields, models
+from odoo import Command, _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class EventBuilderConfig(models.Model):
@@ -50,6 +51,39 @@ class EventBuilderConfig(models.Model):
         help="Hoeveel dagen op voorhand moet een event minstens geboekt worden?",
     )
 
+    # --- Voorschot ---
+    #
+    # Deze twee velden worden bij het aanmaken van de offerte overgeschreven op
+    # `sale.order.require_payment` en `sale.order.prepayment_percent`. Odoo
+    # gebruikt die daarna zelf: het portaal toont de knop "Betaal het voorschot"
+    # en bij een geslaagde betaling bevestigt Odoo de order en maakt hij
+    # automatisch de voorschotfactuur aan.
+    #
+    # Waarom hier en niet in de bedrijfsinstellingen? Omdat een trouwfeest een
+    # ander voorschot mag vragen dan een bedrijfsevent, en jij dat zelf moet
+    # kunnen instellen zonder tussenkomst van een ontwikkelaar.
+
+    require_prepayment = fields.Boolean(
+        string="Voorschot vragen",
+        default=True,
+        help="De klant betaalt online een deel van het bedrag om de "
+             "boeking te bevestigen.",
+    )
+    prepayment_percent = fields.Float(
+        string="Voorschot",
+        default=0.30,
+        help="Aandeel van het totaalbedrag dat de klant nu betaalt. "
+             "0,30 = 30%. Op 1,00 betaalt hij meteen alles.",
+    )
+
+    @api.constrains('require_prepayment', 'prepayment_percent')
+    def _check_prepayment_percent(self):
+        for config in self:
+            if config.require_prepayment and not 0 < config.prepayment_percent <= 1.0:
+                raise ValidationError(_(
+                    "Het voorschot moet tussen 0 en 1 liggen (0,30 = 30%)."
+                ))
+
     # --- Relaties ---
 
     # One2many is de "omgekeerde" kant van een Many2one. Het tweede argument
@@ -85,12 +119,18 @@ class EventBuilderConfig(models.Model):
     # herbruikbaar vanuit de backend, vanuit tests en vanuit een toekomstige
     # API, en kan door een andere module aangepast worden via _inherit.
 
-    def _get_website_data(self):
-        """Bouw de structuur die de configurator in de browser nodig heeft."""
+    def _get_website_data(self, pricelist=None):
+        """Bouw de structuur die de configurator in de browser nodig heeft.
+
+        :param product.pricelist pricelist: de prijslijst van de bezoeker, zodat
+            de stukprijzen op de kaartjes kloppen met wat hij zal betalen.
+        """
         self.ensure_one()
+        currency = pricelist.currency_id if pricelist else self.env.company.currency_id
         return {
             'id': self.id,
             'name': self.name,
+            'currency_id': currency.id,
             'guest': {
                 'label': self.guest_label,
                 'min': self.guest_min,
@@ -104,14 +144,10 @@ class EventBuilderConfig(models.Model):
                 'description': step.description or '',
                 'selection_type': step.selection_type,
                 'is_required': step.is_required,
-                'options': [{
-                    'id': option.id,
-                    'name': option.name,
-                    'description': option.description or '',
-                    'image_url': option._get_image_url(),
-                    'qty_mode': option.qty_mode,
-                    'charge_per_day': option.charge_per_day,
-                } for option in step.option_ids],
+                'options': [
+                    option._get_website_data(pricelist)
+                    for option in step.option_ids
+                ],
             } for step in self.step_ids],
         }
 
@@ -175,6 +211,8 @@ class EventBuilderConfig(models.Model):
                 'amount_untaxed': 0.0,
                 'amount_tax': 0.0,
                 'amount_total': 0.0,
+                'prepayment_amount': 0.0,
+                'prepayment_percent': self.prepayment_percent if self.require_prepayment else 0.0,
                 'currency_id': currency.id,
             }
 
@@ -203,10 +241,80 @@ class EventBuilderConfig(models.Model):
                 'price_total': order_line.price_total,
             })
 
+        # Het voorschot dat de klant straks online betaalt. We ronden af met de
+        # valuta zelf, exact zoals Odoo dat doet in
+        # `sale.order._get_prepayment_required_amount()`, zodat het bedrag op de
+        # website tot op de cent overeenkomt met dat op het klantenportaal.
+        prepayment_amount = order.currency_id.round(
+            order.amount_total * self.prepayment_percent
+        ) if self.require_prepayment else 0.0
+
         return {
             'lines': line_values,
             'amount_untaxed': order.amount_untaxed,
             'amount_tax': order.amount_tax,
             'amount_total': order.amount_total,
+            'prepayment_amount': prepayment_amount,
+            'prepayment_percent': self.prepayment_percent if self.require_prepayment else 0.0,
             'currency_id': order.currency_id.id,
         }
+
+    # ------------------------------------------------------------------
+    # Van keuze naar offerte
+    # ------------------------------------------------------------------
+
+    def _create_quotation(self, partner, option_ids, guest_count, days, logistics=None):
+        """Maak een echte offerte aan op basis van de keuze van de bezoeker.
+
+        Dit is het punt waarop er voor het eerst iets in de database belandt.
+        Alles daarvoor - de structuur ophalen, prijzen tonen - is vrijblijvend.
+
+        We maken bewust een OFFERTE en geen winkelmandje. Een event van enkele
+        duizenden euro's wordt zelden in één zitting afgerekend: de klant wil
+        het document doorsturen naar zijn zaakvoerder, erover nadenken, en pas
+        daarna betalen. Bovendien rekent de gewone webshop-checkout altijd het
+        volledige bedrag af (zie website_sale/controllers/payment.py), terwijl
+        de voorschotlogica van Odoo net in het klantenportaal zit.
+
+        :param res.partner partner: de klant
+        :param list option_ids: de aangeklikte opties
+        :param int guest_count: aantal personen
+        :param int days: duur in dagen
+        :param dict logistics: leverdatum, ophaaldatum en postcode
+        :return: de aangemaakte offerte
+        :rtype: sale.order
+        """
+        self.ensure_one()
+        logistics = logistics or {}
+
+        line_values = self._get_line_values(option_ids, guest_count, days)
+        if not line_values:
+            raise ValidationError(_("Selecteer minstens één optie."))
+
+        order = self.env['sale.order'].sudo().create({
+            'partner_id': partner.id,
+            'event_builder_config_id': self.id,
+            'event_guest_count': guest_count,
+            'event_delivery_date': logistics.get('date_from'),
+            'event_pickup_date': logistics.get('date_to'),
+            'event_zip': logistics.get('zip_code'),
+
+            # Deze twee sturen de voorschotknop op het portaal aan.
+            'require_payment': self.require_prepayment,
+            'prepayment_percent': self.prepayment_percent if self.require_prepayment else 1.0,
+
+            'order_line': [
+                Command.create({
+                    'product_id': line['product_id'],
+                    'product_uom_qty': line['product_uom_qty'],
+                })
+                for line in line_values
+            ],
+        })
+
+        # Van 'draft' naar 'sent': de offerte is bezorgd aan de klant. Deze
+        # methode verstuurt zelf geen e-mail, ze zet enkel de status - handig,
+        # want in een ontwikkelomgeving is er meestal geen mailserver.
+        order.action_quotation_sent()
+
+        return order

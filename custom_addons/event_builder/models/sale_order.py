@@ -29,6 +29,36 @@ class SaleOrder(models.Model):
     event_duration_days = fields.Integer(
         string="Duur (dagen)", compute='_compute_event_duration_days')
 
+    # --- Opvolging van het voorschot ---
+    #
+    # Odoo heeft `amount_paid` (som van de geslaagde online transacties), maar
+    # toont nergens in één oogopslag "hoeveel verwachtten we, en hoeveel staat
+    # er nog open". Voor een eventbedrijf dat maanden vooraf boekt, is dat net
+    # de vraag die je elke dag stelt.
+
+    event_prepayment_amount = fields.Monetary(
+        string="Verwacht voorschot",
+        compute='_compute_event_payment_amounts',
+        help="Het bedrag dat de klant online moet betalen om de boeking te "
+             "bevestigen.",
+    )
+    event_amount_due = fields.Monetary(
+        string="Nog te betalen",
+        compute='_compute_event_payment_amounts',
+        help="Totaalbedrag min wat er al online betaald werd.",
+    )
+
+    @api.depends('amount_total', 'amount_paid', 'require_payment', 'prepayment_percent')
+    def _compute_event_payment_amounts(self):
+        for order in self:
+            # We hergebruiken Odoo's eigen berekening in plaats van zelf
+            # amount_total * percent te doen, zodat onze cijfers nooit een cent
+            # afwijken van wat het klantenportaal aanrekent.
+            order.event_prepayment_amount = order._get_prepayment_required_amount()
+            order.event_amount_due = order.currency_id.round(
+                order.amount_total - order.amount_paid
+            )
+
     @api.depends('event_delivery_date', 'event_pickup_date')
     def _compute_event_duration_days(self):
         for order in self:

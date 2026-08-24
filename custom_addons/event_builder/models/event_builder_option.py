@@ -1,7 +1,7 @@
 # Part of the Event Builder module.
 import math
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 
 
 class EventBuilderOption(models.Model):
@@ -123,6 +123,61 @@ class EventBuilderOption(models.Model):
             qty *= max(days, 1)
 
         return qty
+
+    def _get_website_data(self, pricelist=None):
+        """De gegevens die één kaartje in de configurator nodig heeft."""
+        self.ensure_one()
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description or '',
+            'image_url': self._get_image_url(),
+            'qty_mode': self.qty_mode,
+            'charge_per_day': self.charge_per_day,
+            'unit_price': self._get_unit_price(pricelist),
+            'price_label': self._get_price_label(),
+        }
+
+    def _get_unit_price(self, pricelist=None):
+        """Stukprijs volgens de prijslijst van de bezoeker, btw zoals ingesteld.
+
+        We gebruiken hier dezelfde twee helpers als de gewone webshop:
+        `_get_contextual_price` voor de prijslijst, en `_apply_taxes_to_price`
+        om btw wel of niet mee te tellen naargelang de website-instelling
+        "Prijzen tonen incl./excl. btw". Zo staat op het kaartje hetzelfde
+        soort bedrag als in de rest van je shop.
+        """
+        self.ensure_one()
+        product = self.product_id
+        if pricelist:
+            product = product.with_context(pricelist=pricelist.id)
+        price = product._get_contextual_price()
+
+        website = self.env['website'].get_current_website()
+        if not website:
+            return price
+        taxes = product.taxes_id.filtered(lambda t: t.company_id == self.env.company)
+        return self.env['product.template']._apply_taxes_to_price(
+            price,
+            pricelist.currency_id if pricelist else product.currency_id,
+            taxes,
+            taxes,
+            product,
+            website=website,
+        )
+
+    def _get_price_label(self):
+        """Korte uitleg waar die stukprijs voor staat, bv. "per persoon/dag"."""
+        self.ensure_one()
+        if self.qty_mode == 'per_person':
+            unit = _("per persoon")
+        elif self.qty_mode == 'per_x':
+            unit = _("per %(count)s personen", count=int(self.qty_factor or 0))
+        else:
+            unit = _("per stuk")
+        if self.charge_per_day:
+            unit = _("%(unit)s, per dag", unit=unit)
+        return unit
 
     def _get_image_url(self):
         """URL naar de afbeelding, met terugval op de productafbeelding.
