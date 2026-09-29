@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+      ============================================================
+      De toolpagina: /bouw-je-feest
+      ============================================================
+      Dit is de bestemming van de knop "Naar de tool" in de navigatiebalk.
+
+      De configurator zelf zit al in `event_builder.s_event_builder`, het
+      website-blok dat je ook in de editor kan slepen. Hier roepen we dat
+      template rechtstreeks aan met `t-call`. Zo staat de configurator maar
+      op één plek: verandert de opbouw van het blok, dan verandert deze
+      pagina mee, zonder dat we iets hoeven te kopieren.
+
+      Het lege `data-config-id` in dat blok betekent "neem de eerste actieve
+      configurator". Wil je hier een specifieke, dan kan je het blok in een
+      eigen sectie zetten en het attribuut invullen.
+
+      Net als de homepage: geen `oe_structure`, dus de website-builder kan er
+      niet in en een module-upgrade herstelt de pagina.
+    -->
+    <template id="tool_page" name="Bouw je feest">
+        <t t-call="website.layout">
+            <div id="wrap" class="o_byp_tool">
+
+                <!-- Korte kop in de huisstijl, zodat de pagina niet koud
+                     met een formulier begint. -->
+                <section class="o_byp_tool_intro">
+                    <div class="container">
+                        <h1 class="o_byp_tool_title">Bouw je feest</h1>
+                        <p class="o_byp_tool_lead">
+                            Kies je datum, het aantal gasten en je formule.
+                            De prijs rekent live mee, en je boekt met een
+                            voorschot.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- De configurator -->
+                <t t-call="event_builder.s_event_builder"/>
+
+            </div>
+        </t>
+    </template>
+
+    <record id="tool_page_record" model="website.page">
+        <field name="url">/bouw-je-feest</field>
+        <field name="view_id" ref="tool_page"/>
+        <field name="is_published" eval="True"/>
+        <field name="website_indexed" eval="True"/>
+        <field name="website_meta_title">Bouw je feest - Build Your Party</field>
+        <field name="website_meta_description">Stel je event samen, zie meteen wat het kost en boek met een voorschot.</field>
+    </record>
+
+</odoo>

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+      ============================================================
+      De homepage
+      ============================================================
+      Bewust GEEN `oe_structure` in deze template. Odoo's documentatie raadt
+      die wel aan ("to remain editable by the Website Builder"), maar hier is
+      juist gevraagd dat de pagina vastligt en dat een deploy hem herstelt.
+      Een oe_structure zou de builder toegang geven en bij de eerste bewerking
+      een database-kopie maken die onze code overstemt.
+
+      De pagina leeft op /bouw-je-feest-home en wordt via `homepage_url` aan
+      "/" gehangen. Dat gebeurt met `reroute` (zie website/controllers/main.py),
+      dus de bezoeker ziet gewoon "/" in zijn adresbalk. Zo hoeven we niet te
+      vechten met de bestaande website.homepage en zijn website-specifieke
+      kopie in de database.
+    -->
+    <template id="homepage" name="Build Your Party - home">
+        <t t-call="website.layout">
+            <div id="wrap" class="o_byp_home">
+
+                <!-- ===== Hero ===== -->
+                <section class="o_byp_hero">
+                    <div class="o_byp_hero_inner">
+                        <h1 class="o_byp_title">
+                            Jouw feest?<br/>Zo geregeld.
+                        </h1>
+                        <p class="o_byp_lead">
+                            Kies uit onze partyconcepten en bouw stap voor stap jouw feest.
+                            Snel, eenvoudig en met alles wat je nodig hebt om er iets
+                            goeds van te maken.
+                        </p>
+                    </div>
+
+                    <!--
+                      De mascotte. Loopt van rechts naar links door de hero.
+                      `aria-hidden` omdat het puur decoratief is: een
+                      schermlezer heeft er niets aan.
+
+                      Zolang het echte bestand er niet is, staat hier de
+                      placeholder van Odoo. Vervang het src-pad door je eigen
+                      illustratie en de animatie werkt meteen.
+                    -->
+                    <img class="o_byp_mascot"
+                         src="/web/static/img/placeholder.png"
+                         alt="" aria-hidden="true"/>
+                </section>
+
+                <!-- ===== Sfeerband onder de hero ===== -->
+                <section class="o_byp_band" aria-hidden="true"/>
+
+            </div>
+        </t>
+    </template>
+
+    <!--
+      De pagina zelf. `website.page` koppelt een URL aan de template
+      hierboven en bepaalt of ze gepubliceerd is.
+
+      Geen noupdate: de documentatie raadt `noupdate="1"` aan om
+      gebruikerswijzigingen te beschermen, maar hier willen we net het
+      omgekeerde. Elke module-upgrade moet de pagina terugzetten zoals ze in
+      git staat.
+    -->
+    <record id="homepage_page" model="website.page">
+        <field name="url">/bouw-je-feest-home</field>
+        <field name="view_id" ref="homepage"/>
+        <field name="is_published" eval="True"/>
+        <field name="website_indexed" eval="True"/>
+        <field name="website_meta_title">Build Your Party - jouw feest, zo geregeld</field>
+        <field name="website_meta_description">Kies je partyconcept en bouw stap voor stap jouw feest. Direct een prijs, in enkele stappen geboekt.</field>
+    </record>
+
+</odoo>
