@@ -41,18 +41,24 @@ export class EventBuilder extends Component {
             guestCount: 0,
             dateFrom: '',
             dateTo: '',
-            zip: '',
             selectedOptionIds: [],
 
-            // Contactgegevens. Bewust hier in het rechterpaneel en niet op een
-            // aparte pagina: dat scheelt de bezoeker een stap, en het is
-            // dezelfde informatie die de gewone webshop-checkout ook vraagt.
-            contact: {
-                name: '',
-                email: '',
-                phone: '',
-                company_name: '',
-            },
+            // Adressen. Alleen van toepassing voor ingelogde klanten; de
+            // server vult ze zelf met het standaard lever- en factuuradres.
+            isLoggedIn: false,
+            addresses: null,          // payload van /event_builder/addresses
+            useDeliveryAsBilling: true,
+            // Welke van de twee blokken openstaat: null, 'delivery' of
+            // 'invoice'. Samengevouwen tonen ze het adres op één regel.
+            expandedAddress: null,
+            addressDraft: null,       // de velden die nu bewerkt worden
+            addressPristine: null,    // ijkpunt om wijzigingen te herkennen
+            addressSaving: false,
+            addressError: null,
+            // De landenlijst wordt pas opgehaald zodra iemand een adres
+            // openklapt, en daarna hergebruikt.
+            countryList: null,
+            countriesLoading: false,
 
             // Wat de server terugrekende
             quote: null,
@@ -73,13 +79,84 @@ export class EventBuilder extends Component {
                 });
                 this.state.config = config;
                 this.state.guestCount = config.guest.default;
+                this.state.isLoggedIn = !!config.is_logged_in;
                 this.setDefaultDates(config.min_lead_days);
+
+                // Een configuratie die vóór het inloggen gemaakt werd,
+                // terugzetten. Zonder dit komt de klant na de login op een
+                // lege configurator terecht en haakt hij af.
+                this.restoreDraft();
+
+                if (this.state.isLoggedIn) {
+                    await this.loadAddresses();
+                }
+                if (this.state.selectedOptionIds.length) {
+                    await this.refreshPrice();
+                }
             } catch {
                 this.state.error = 'De configurator kon niet geladen worden.';
             } finally {
                 this.state.loading = false;
             }
         });
+    }
+
+    // ------------------------------------------------------------------
+    // Bewaren over de login heen
+    // ------------------------------------------------------------------
+
+    get draftKey() {
+        return `event_builder_draft_${this.props.configId || 0}`;
+    }
+
+    /**
+     * De keuze even opzijzetten voor we naar de loginpagina sturen.
+     *
+     * sessionStorage en niet localStorage: de keuze moet de omweg langs de
+     * loginpagina overleven, maar hoeft er volgende week niet nog te staan.
+     * Het gaat om een handvol ids en datums, en er staat niets gevoeligs in.
+     * De browser kan opslag weigeren (privémodus), dus alles in een try/catch.
+     */
+    saveDraft() {
+        try {
+            sessionStorage.setItem(this.draftKey, JSON.stringify({
+                guestCount: this.state.guestCount,
+                dateFrom: this.state.dateFrom,
+                dateTo: this.state.dateTo,
+                selectedOptionIds: this.state.selectedOptionIds,
+            }));
+        } catch {
+            // Geen opslag beschikbaar: dan gaat de keuze verloren na de login.
+            // Vervelend, maar geen reden om het inloggen te blokkeren.
+        }
+    }
+
+    restoreDraft() {
+        let draft = null;
+        try {
+            draft = JSON.parse(sessionStorage.getItem(this.draftKey) || 'null');
+            sessionStorage.removeItem(this.draftKey);
+        } catch {
+            return;
+        }
+        if (!draft) {
+            return;
+        }
+        Object.assign(this.state, {
+            guestCount: draft.guestCount ?? this.state.guestCount,
+            dateFrom: draft.dateFrom || this.state.dateFrom,
+            dateTo: draft.dateTo || this.state.dateTo,
+            selectedOptionIds: draft.selectedOptionIds || [],
+        });
+    }
+
+    /** Naar de loginpagina, met een terugkeeradres naar deze pagina. */
+    goToLogin() {
+        this.saveDraft();
+        const redirect = encodeURIComponent(
+            window.location.pathname + window.location.search
+        );
+        window.location = `/web/login?redirect=${redirect}`;
     }
 
     /** Stel standaarddatums voor: net na de minimale doorlooptijd, 1 dag lang. */
@@ -115,6 +192,239 @@ export class EventBuilder extends Component {
         );
     }
 
+    // ------------------------------------------------------------------
+    // Adressen
+    // ------------------------------------------------------------------
+
+    async loadAddresses() {
+        this.state.addresses = await rpc('/event_builder/addresses', {});
+        this.state.useDeliveryAsBilling = this.state.addresses.use_delivery_as_billing;
+    }
+
+    /** Het adres dat nu voor dit type gekozen is. */
+    address(type) {
+        return this.state.addresses?.[type] || null;
+    }
+
+    /** Het factuuradres volgt het leveradres zodra het vinkje aanstaat. */
+    get effectiveInvoice() {
+        return this.state.useDeliveryAsBilling
+            ? this.address('delivery')
+            : this.address('invoice');
+    }
+
+    /** Welke adressen nog niet volledig zijn. Stuurt knop en waarschuwing. */
+    get incompleteAddresses() {
+        if (!this.state.isLoggedIn || !this.state.addresses) {
+            return [];
+        }
+        const result = [];
+        if (!this.address('delivery')?.is_complete) {
+            result.push('leveradres');
+        }
+        if (!this.state.useDeliveryAsBilling && !this.address('invoice')?.is_complete) {
+            result.push('factuuradres');
+        }
+        return result;
+    }
+
+    /**
+     * Een adresblok open- of dichtklappen.
+     *
+     * Samengevouwen is het één regel tekst; uitgeklapt wordt het een
+     * formulier. We maken bij het openen een kopie van de waarden, zodat
+     * annuleren niets wijzigt en de weergave niet meebeweegt terwijl je typt.
+     */
+    toggleAddress(type) {
+        if (this.state.expandedAddress === type) {
+            // Dichtklappen is hetzelfde als annuleren: de wijzigingen gaan
+            // weg. Zo kan er nooit iets onbewaard blijven rondslingeren
+            // terwijl de boekknop weer vrijgeeft.
+            this.cancelAddressEdit();
+            return;
+        }
+        this.state.expandedAddress = type;
+        this.state.addressError = null;
+        this.fillDraft(this.address(type));
+        // Niet awaiten: het formulier mag meteen verschijnen, de landen
+        // druppelen daarna binnen.
+        this.ensureCountries();
+    }
+
+    get countries() {
+        return this.state.countryList || [];
+    }
+
+    /**
+     * De verplichte velden voor het adres dat nu openstaat.
+     *
+     * De lijst komt van de server, want ze hangt af van het land: Odoo vraagt
+     * in de Verenigde Staten een staat en in Belgie niet. Zelf raden zou
+     * betekenen dat de sterretjes in het formulier iets anders zeggen dan de
+     * controle bij het opslaan.
+     */
+    get requiredFields() {
+        return this.address(this.state.expandedAddress)?.mandatory || [];
+    }
+
+    isRequiredField(fieldName) {
+        return this.requiredFields.includes(fieldName);
+    }
+
+    /** Verplicht maar nog leeg: dan het veld rood omranden. */
+    isMissingField(fieldName) {
+        return this.isRequiredField(fieldName)
+            && !String(this.state.addressDraft?.[fieldName] ?? '').trim();
+    }
+
+    /** Een sterretje achter het label van een verplicht veld. */
+    fieldLabel(fieldName, label) {
+        return this.isRequiredField(fieldName) ? `${label} *` : label;
+    }
+
+    /**
+     * De landenlijst ophalen, maar hooguit één keer per paginabezoek.
+     * Ze verandert nooit, dus opnieuw ophalen bij elk adres is verspilling.
+     */
+    async ensureCountries() {
+        if (this.state.countryList || this.state.countriesLoading) {
+            return;
+        }
+        this.state.countriesLoading = true;
+        try {
+            const { countries } = await rpc('/event_builder/address/countries', {});
+            this.state.countryList = countries;
+        } finally {
+            this.state.countriesLoading = false;
+        }
+    }
+
+    /**
+     * Selectiecontroles als methode, niet als template-uitdrukking.
+     * OWL laat in templates maar een korte lijst globals toe; String() zit er
+     * niet bij en zou de render laten crashen.
+     */
+    isCurrentCountry(countryId) {
+        return String(countryId) === String(this.state.addressDraft?.country_id ?? '');
+    }
+
+    isCurrentChoice(partnerId) {
+        return String(partnerId) === String(this.state.addressDraft?.partner_id ?? '');
+    }
+
+    /** De velden van een adres in het bewerkformulier zetten. */
+    fillDraft(address) {
+        const values = {
+            partner_id: address?.id || null,
+            name: address?.name || '',
+            street: address?.street || '',
+            street2: address?.street2 || '',
+            zip: address?.zip || '',
+            city: address?.city || '',
+            state_id: address?.state_id || '',
+            country_id: address?.country_id || '',
+            phone: address?.phone || '',
+            email: address?.email || '',
+        };
+        this.state.addressDraft = values;
+        // Een kopie als ijkpunt. Wat de klant daarna typt, vergelijken we
+        // hiermee om te weten of er iets te bewaren valt.
+        this.state.addressPristine = { ...values };
+    }
+
+    /** Staat er iets in het formulier dat nog niet bewaard is? */
+    get isAddressDirty() {
+        const draft = this.state.addressDraft;
+        const pristine = this.state.addressPristine;
+        if (!draft || !pristine) {
+            return false;
+        }
+        return Object.keys(draft).some(
+            (key) => String(draft[key] ?? '') !== String(pristine[key] ?? '')
+        );
+    }
+
+    /** Wijzigingen weggooien en het blok dichtklappen. */
+    cancelAddressEdit() {
+        this.state.expandedAddress = null;
+        this.state.addressDraft = null;
+        this.state.addressPristine = null;
+        this.state.addressError = null;
+    }
+
+    /**
+     * Een ander bestaand adres kiezen, of "Nieuw adres".
+     *
+     * Kiezen schrijft niets weg: we halen het gekozen adres op en vullen er
+     * het formulier mee. Zouden we hier opslaan, dan zouden de velden van het
+     * vórige adres op het nieuwe terechtkomen.
+     */
+    async onAddressChoice(ev) {
+        const type = this.state.expandedAddress;
+        if (ev.target.value === 'new') {
+            this.fillDraft(null);
+            return;
+        }
+        const result = await rpc('/event_builder/address/select', {
+            address_type: type,
+            partner_id: parseInt(ev.target.value, 10),
+        });
+        this.state.addresses[type] = result.address;
+        this.state.addresses.states = result.states;
+        this.fillDraft(result.address);
+    }
+
+    /** Bij een ander land andere provincies ophalen. */
+    async onCountryChange(ev) {
+        this.state.addressDraft.country_id = ev.target.value;
+        this.state.addressDraft.state_id = '';
+        const { states } = await rpc('/event_builder/address/states', {
+            country_id: ev.target.value,
+        });
+        this.state.addresses.states = states;
+    }
+
+    get draftStates() {
+        const countryId = parseInt(this.state.addressDraft?.country_id, 10);
+        return (this.state.addresses?.states || []).filter(
+            (s) => s.country_id === countryId
+        );
+    }
+
+    async saveAddress() {
+        this.state.addressSaving = true;
+        this.state.addressError = null;
+        try {
+            const result = await rpc('/event_builder/address/save', {
+                address_type: this.state.expandedAddress,
+                partner_id: this.state.addressDraft.partner_id || null,
+                values: this.state.addressDraft,
+            });
+            // Alleen de keuzelijst en de landgegevens overnemen. Het lever-
+            // en factuuradres NIET: `addresses` bevat de standaardadressen van
+            // de klant, en die zouden een afwijkende keuze weer wegdrukken.
+            const type = this.state.expandedAddress;
+            const keep = {
+                delivery: this.state.addresses.delivery,
+                invoice: this.state.addresses.invoice,
+            };
+            this.state.addresses = Object.assign(result.addresses, keep);
+            // De server bepaalt wat er nog ontbreekt. Is het adres compleet,
+            // dan klappen we het blok dicht; anders blijft het open met de
+            // ontbrekende velden gemarkeerd.
+            this.state.addresses[type] = result.address;
+            if (result.address.is_complete) {
+                this.state.expandedAddress = null;
+                this.state.addressDraft = null;
+            }
+        } catch (error) {
+            this.state.addressError =
+                error?.data?.message || 'Het adres kon niet bewaard worden.';
+        } finally {
+            this.state.addressSaving = false;
+        }
+    }
+
     /** Het bedrag dat de klant nu online betaalt om te boeken. */
     get prepaymentAmount() {
         return this.state.quote?.prepayment_amount || 0;
@@ -130,25 +440,66 @@ export class EventBuilder extends Component {
             && this.prepaymentAmount < (this.state.quote?.amount_total || 0);
     }
 
-    /**
-     * Een oppervlakkige e-mailcontrole: genoeg om typfouten te vangen zonder
-     * geldige adressen te weigeren. De echte controle gebeurt op de server
-     * met `email_normalize`.
-     */
-    get isEmailValid() {
-        return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.state.contact.email.trim());
+    /** Is de selectie zelf rond? Los van login en adressen. */
+    get hasValidSelection() {
+        return (
+            this.state.selectedOptionIds.length > 0
+            && this.missingSteps.length === 0
+            && !!this.state.dateFrom
+            && !!this.state.dateTo
+        );
     }
 
     get canSubmit() {
         return (
             !this.state.submitting
-            && this.state.selectedOptionIds.length > 0
-            && this.missingSteps.length === 0
-            && !!this.state.dateFrom
-            && !!this.state.dateTo
-            && !!this.state.contact.name.trim()
-            && this.isEmailValid
+            && this.hasValidSelection
+            && this.state.isLoggedIn
+            && this.incompleteAddresses.length === 0
+            && !this.isAddressDirty
         );
+    }
+
+    /**
+     * De tekst op de knop. Nooit een grijze knop zonder uitleg: hij zegt wat
+     * de volgende stap is en brengt je er ook naartoe.
+     */
+    get submitLabel() {
+        if (!this.state.isLoggedIn) {
+            return 'Inloggen om te boeken';
+        }
+        if (this.isAddressDirty) {
+            return 'Bewaar je adreswijziging eerst';
+        }
+        if (this.incompleteAddresses.length) {
+            return `Vul je ${this.incompleteAddresses[0]} aan`;
+        }
+        if (this.hasPrepayment) {
+            return `Boek met ${this.formatPrice(this.prepaymentAmount)} voorschot`;
+        }
+        return 'Bestellen';
+    }
+
+    /** Klikken doet altijd iets: inloggen, adres openen, of boeken. */
+    onPrimaryAction() {
+        if (!this.state.isLoggedIn) {
+            return this.goToLogin();
+        }
+        if (this.isAddressDirty) {
+            // Het formulier staat al open; er hoeft alleen naartoe gescrold.
+            this.goToSummary();
+            return;
+        }
+        if (this.incompleteAddresses.length) {
+            const type = this.incompleteAddresses[0] === 'leveradres'
+                ? 'delivery' : 'invoice';
+            if (this.state.expandedAddress !== type) {
+                this.toggleAddress(type);
+            }
+            this.goToSummary();
+            return;
+        }
+        return this.onSubmit();
     }
 
     isSelected(optionId) {
@@ -279,9 +630,10 @@ export class EventBuilder extends Component {
                 guest_count: this.state.guestCount,
                 date_from: this.state.dateFrom,
                 date_to: this.state.dateTo,
-                zip_code: this.state.zip,
                 option_ids: this.state.selectedOptionIds,
-                contact: this.state.contact,
+                delivery_id: this.address('delivery')?.id || null,
+                invoice_id: this.effectiveInvoice?.id || null,
+                use_delivery_as_billing: this.state.useDeliveryAsBilling,
             });
             // De server stuurt ons naar de offerte in het klantenportaal, met
             // een access_token in de URL. Daar staat de knop om het voorschot
