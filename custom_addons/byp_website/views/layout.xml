@@ -112,6 +112,13 @@
                     -->
                     <div class="o_byp_nav_right">
                         <ul class="navbar-nav align-items-center flex-row gap-3 o_byp_user">
+                            <!-- Taalkiezer. Verschijnt vanzelf zodra er meer
+                                 dan één taal op de website actief staat, en
+                                 blijft anders onzichtbaar. -->
+                            <t t-call="website.placeholder_header_language_selector">
+                                <t t-set="_btn_class" t-value="'nav-link o_byp_signin'"/>
+                                <t t-set="_dropdown_menu_class" t-value="'dropdown-menu-end'"/>
+                            </t>
                             <t t-call="portal.placeholder_user_sign_in">
                                 <t t-set="_item_class" t-value="'nav-item'"/>
                                 <t t-set="_link_class" t-value="'nav-link o_byp_signin'"/>

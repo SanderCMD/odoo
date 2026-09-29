@@ -28,10 +28,10 @@
                   gemonteerd is.
                 -->
                 <div class="o_event_builder_placeholder text-center py-5">
-                    <h3 class="mb-1">Stel je event samen</h3>
+                    <h3 class="mb-1">Create your event</h3>
                     <p class="text-muted mb-0">
-                        Kies datum, aantal personen en formule - de prijs
-                        rekent live mee.
+                        Pick a date, guest count and formula - the price
+                        calculates live.
                     </p>
                 </div>
 
@@ -82,7 +82,7 @@
                group="catalog"
                t-thumbnail="/event_builder/static/src/img/snippets_thumbs/s_event_builder.svg"
                t-image-preview="/event_builder/static/src/img/snippets_previews/s_event_builder_preview.svg">
-                <keywords>event, configurator, offerte, prijs, catering, bouwblokken, samenstellen</keywords>
+                <keywords>event, configurator, offer, quote, price, catering, building blocks, assembling</keywords>
             </t>
         </xpath>
     </template>

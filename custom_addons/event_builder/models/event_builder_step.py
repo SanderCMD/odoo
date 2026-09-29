@@ -19,16 +19,16 @@ class EventBuilderStep(models.Model):
         index=True,
     )
 
-    name = fields.Char(string="Titel", required=True, translate=True)
+    name = fields.Char(string="Title", required=True, translate=True)
     sequence = fields.Integer(default=10)
-    description = fields.Text(string="Uitleg", translate=True)
+    description = fields.Text(string="Description", translate=True)
 
     selection_type = fields.Selection(
         selection=[
-            ('single', "Eén keuze"),
-            ('multi', "Meerdere keuzes"),
+            ('single', "One choice"),
+            ('multi', "Multiple choices"),
         ],
-        string="Keuzetype",
+        string="Selection type",
         default='single',
         required=True,
     )
@@ -36,8 +36,8 @@ class EventBuilderStep(models.Model):
     # LET OP de naam: `required` is al een ingebouwd argument van fields.
     # Een veld zo noemen geeft verwarrende conflicten, vandaar `is_required`.
     is_required = fields.Boolean(
-        string="Verplicht",
-        help="De bezoeker moet hier minstens één optie kiezen.",
+        string="Required",
+        help="The visitor must choose at least one option here.",
     )
 
     option_ids = fields.One2many(
@@ -99,9 +99,9 @@ class EventBuilderStep(models.Model):
         # rechtsboven zonder de pagina te verlaten. `sticky: False` laat ze
         # na enkele seconden vanzelf verdwijnen.
         if created:
-            message = _("%(count)s variant(en) toegevoegd.", count=len(created))
+            message = _("%(count)s variant(s) added.", count=len(created))
         else:
-            message = _("Alle varianten staan er al in.")
+            message = _("All variants are already included.")
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',

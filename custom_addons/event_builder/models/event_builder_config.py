@@ -34,21 +34,21 @@ class EventBuilderConfig(models.Model):
         comodel_name='website',
         string="Website",
         ondelete='cascade',
-        help="Laat leeg om deze configurator op alle websites te tonen.",
+        help="Leave empty to show this configurator on all websites.",
     )
 
     # --- Logistiek: wat we aan de bezoeker vragen vooraleer hij kiest ---
 
     guest_label = fields.Char(
-        string="Label aantal personen", default="Aantal personen", translate=True)
-    guest_min = fields.Integer(string="Minimum personen", default=10)
-    guest_max = fields.Integer(string="Maximum personen", default=1000)
-    guest_default = fields.Integer(string="Standaard personen", default=50)
+        string="Label guest count", default="Guest Count", translate=True)
+    guest_min = fields.Integer(string="Minimum guest count", default=10)
+    guest_max = fields.Integer(string="Maximum guest count", default=1000)
+    guest_default = fields.Integer(string="Default guest count", default=50)
 
     min_lead_days = fields.Integer(
-        string="Minimale doorlooptijd (dagen)",
+        string="Minimum lead time (days)",
         default=7,
-        help="Hoeveel dagen op voorhand moet een event minstens geboekt worden?",
+        help="How many days in advance must an event be booked at minimum?",
     )
 
     # --- Voorschot ---
@@ -64,16 +64,15 @@ class EventBuilderConfig(models.Model):
     # kunnen instellen zonder tussenkomst van een ontwikkelaar.
 
     require_prepayment = fields.Boolean(
-        string="Voorschot vragen",
+        string="Require Down Payment",
         default=True,
-        help="De klant betaalt online een deel van het bedrag om de "
-             "boeking te bevestigen.",
+        help="The customer pays a down payment to confirm the booking.",
     )
     prepayment_percent = fields.Float(
-        string="Voorschot",
+        string="Down Payment",
         default=0.30,
-        help="Aandeel van het totaalbedrag dat de klant nu betaalt. "
-             "0,30 = 30%. Op 1,00 betaalt hij meteen alles.",
+        help="Percentage of the total amount that the customer pays now. "
+             "0.30 = 30%. At 1.00 he pays everything immediately.",
     )
 
     @api.constrains('require_prepayment', 'prepayment_percent')
@@ -81,7 +80,7 @@ class EventBuilderConfig(models.Model):
         for config in self:
             if config.require_prepayment and not 0 < config.prepayment_percent <= 1.0:
                 raise ValidationError(_(
-                    "Het voorschot moet tussen 0 en 1 liggen (0,30 = 30%)."
+                    "The down payment must be between 0 and 1 (0.30 = 30%)."
                 ))
 
     # --- Relaties ---
@@ -101,7 +100,7 @@ class EventBuilderConfig(models.Model):
     # (in de praktijk: het HTTP-verzoek) duurt. Twee keer uitlezen binnen
     # hetzelfde verzoek rekent dus één keer; een volgend verzoek begint met
     # een lege cache en rekent opnieuw.
-    step_count = fields.Integer(string="Aantal stappen", compute='_compute_step_count')
+    step_count = fields.Integer(string="Number of Steps", compute='_compute_step_count')
 
     # `@api.depends` doet hier iets anders dan bij een opgeslagen veld.
     #
@@ -304,7 +303,7 @@ class EventBuilderConfig(models.Model):
 
         line_values = self._get_line_values(option_ids, guest_count, days)
         if not line_values:
-            raise ValidationError(_("Selecteer minstens één optie."))
+            raise ValidationError(_("Select at least one option."))
 
         # Odoo vult partner_invoice_id en partner_shipping_id zelf in vanuit
         # partner_id (via address_get). Geven we ze expliciet mee, dan winnen

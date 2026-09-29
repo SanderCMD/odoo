@@ -32,25 +32,25 @@
             <form string="Configurator">
                 <sheet>
                     <!-- De archief-badge verschijnt automatisch dankzij `active`. -->
-                    <widget name="web_ribbon" title="Gearchiveerd" bg_color="text-bg-danger"
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
                             invisible="active"/>
                     <div class="oe_title">
                         <label for="name"/>
-                        <h1><field name="name" placeholder="bv. Bedrijfsevent"/></h1>
+                        <h1><field name="name" placeholder="e.g., Corporate Event"/></h1>
                     </div>
                     <group>
-                        <group string="Publicatie">
+                        <group string="Publication">
                             <field name="website_id"/>
                             <field name="active" invisible="1"/>
                             <field name="min_lead_days"/>
                         </group>
-                        <group string="Aantal personen">
+                        <group string="Guest count">
                             <field name="guest_label"/>
                             <field name="guest_min"/>
                             <field name="guest_max"/>
                             <field name="guest_default"/>
                         </group>
-                        <group string="Voorschot">
+                        <group string="Prepayment">
                             <field name="require_prepayment"/>
                             <!--
                               widget="percentage" toont 0,30 als "30%" en
@@ -72,7 +72,7 @@
                               de website.
                             -->
                             <field name="step_ids">
-                                <list string="Stappen">
+                                <list string="Steps">
                                     <field name="sequence" widget="handle"/>
                                     <field name="name"/>
                                     <field name="selection_type"/>
@@ -93,11 +93,11 @@
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
-                Maak je eerste configurator
+                Create your first configurator
             </p>
             <p>
-                Een configurator is de een-pagina-vragenlijst waarmee een
-                bezoeker zijn event samenstelt en meteen een prijs ziet.
+                A configurator is the single-page questionnaire with which a
+                visitor assembles their event and sees a price immediately.
             </p>
         </field>
     </record>
@@ -108,7 +108,7 @@
         <field name="name">event.builder.step.form</field>
         <field name="model">event.builder.step</field>
         <field name="arch" type="xml">
-            <form string="Stap">
+            <form string="Step">
                 <header>
                     <!--
                       type="object" roept de gelijknamige Python-methode op het
@@ -117,15 +117,15 @@
                     -->
                     <button name="action_add_missing_variants"
                             type="object"
-                            string="Ontbrekende varianten toevoegen"
+                            string="Add missing variants"
                             class="btn-secondary"
                             invisible="not option_ids"
-                            help="Maakt een optie voor elke productvariant die nog niet in deze stap staat."/>
+                            help="Creates an option for each product variant that is not yet in this step."/>
                 </header>
                 <sheet>
                     <div class="oe_title">
                         <label for="name"/>
-                        <h1><field name="name" placeholder="bv. Catering"/></h1>
+                        <h1><field name="name" placeholder="e.g. Catering"/></h1>
                     </div>
                     <group>
                         <group>
@@ -136,7 +136,7 @@
                             <field name="config_id" readonly="1"/>
                         </group>
                     </group>
-                    <field name="description" placeholder="Uitleg voor de bezoeker..."/>
+                    <field name="description" placeholder="Information about the option for the visitor..."/>
                     <notebook>
                         <page string="Opties" name="options">
                             <field name="option_ids">
@@ -177,13 +177,13 @@
                             <field name="list_price" widget="monetary"/>
                             <field name="currency_id" invisible="1"/>
                         </group>
-                        <group string="Hoeveelheid">
+                        <group string="Quantity">
                             <field name="qty_mode"/>
                             <field name="qty_factor"/>
                             <field name="charge_per_day"/>
                         </group>
                     </group>
-                    <field name="description" placeholder="Korte omschrijving voor op de website..."/>
+                    <field name="description" placeholder="Short description for the website..."/>
                 </sheet>
             </form>
         </field>
@@ -215,7 +215,7 @@
                             <field name="event_zip"/>
                             <field name="event_builder_config_id" readonly="1"/>
                         </group>
-                        <group string="Voorschot" colspan="2">
+                        <group string="Prepayment" colspan="2">
                             <!--
                               `amount_paid` telt alleen transacties met status
                               'done' of 'authorized'. Een openstaande
