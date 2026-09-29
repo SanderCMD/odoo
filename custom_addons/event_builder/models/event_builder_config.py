@@ -95,12 +95,26 @@ class EventBuilderConfig(models.Model):
         string="Stappen",
     )
 
-    # Een computed field: niet opgeslagen in de database, maar berekend bij
-    # het uitlezen. `store=True` zou het wel opslaan (en indexeerbaar maken).
+    # Een computed field zonder `store=True`: er komt geen kolom in de
+    # database. De waarde wordt berekend zodra iemand ze opvraagt, en daarna
+    # bewaard in de cache van de omgeving - die leeft zolang de transactie
+    # (in de praktijk: het HTTP-verzoek) duurt. Twee keer uitlezen binnen
+    # hetzelfde verzoek rekent dus één keer; een volgend verzoek begint met
+    # een lege cache en rekent opnieuw.
     step_count = fields.Integer(string="Aantal stappen", compute='_compute_step_count')
 
-    # `@api.depends` vertelt Odoo wanneer deze berekening hergedaan moet worden:
-    # telkens als `step_ids` verandert.
+    # `@api.depends` doet hier iets anders dan bij een opgeslagen veld.
+    #
+    #   store=True  -> Odoo markeert het veld voor HERBEREKENING en schrijft
+    #                  de nieuwe waarde naar de databasekolom.
+    #   store=False -> Odoo GOOIT ENKEL DE CACHE WEG. Zie models.py, in
+    #                  `modified()`: "Don't force the recomputation of compute
+    #                  fields which are not stored as this is not really
+    #                  necessary." De volgende uitlezing rekent dan opnieuw.
+    #
+    # Weglaten mag dus niet: zonder deze regel zou je binnen hetzelfde verzoek
+    # een stap kunnen toevoegen en daarna nog het oude aantal terugkrijgen,
+    # omdat de verouderde waarde in de cache blijft staan.
     @api.depends('step_ids')
     def _compute_step_count(self):
         # `self` is hier GEEN enkel record, maar een *recordset*: een lijst van
@@ -263,7 +277,8 @@ class EventBuilderConfig(models.Model):
     # Van keuze naar offerte
     # ------------------------------------------------------------------
 
-    def _create_quotation(self, partner, option_ids, guest_count, days, logistics=None):
+    def _create_quotation(self, partner, option_ids, guest_count, days, logistics=None,
+                          delivery=None, invoice=None):
         """Maak een echte offerte aan op basis van de keuze van de bezoeker.
 
         Dit is het punt waarop er voor het eerst iets in de database belandt.
@@ -291,8 +306,13 @@ class EventBuilderConfig(models.Model):
         if not line_values:
             raise ValidationError(_("Selecteer minstens één optie."))
 
+        # Odoo vult partner_invoice_id en partner_shipping_id zelf in vanuit
+        # partner_id (via address_get). Geven we ze expliciet mee, dan winnen
+        # onze waarden - dat is precies wat de klant in de configurator koos.
         order = self.env['sale.order'].sudo().create({
             'partner_id': partner.id,
+            'partner_shipping_id': (delivery or partner).id,
+            'partner_invoice_id': (invoice or delivery or partner).id,
             'event_builder_config_id': self.id,
             'event_guest_count': guest_count,
             'event_delivery_date': logistics.get('date_from'),

@@ -35,7 +35,10 @@
                      bepaalt mee de prijs van huurmateriaal. -->
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h4 class="card-title mb-3">Wanneer en waar?</h4>
+                        <h4 class="card-title mb-3">Wanneer en met hoeveel?</h4>
+                        <!-- Drie velden op één rij. De postcode is hier weg:
+                             die halen we uit het leveradres, waar hij hoort en
+                             waar hij ook echt het adres van de locatie is. -->
                         <div class="row g-3">
                             <div class="col-sm-4">
                                 <label class="form-label" for="eb_date_from">Leverdatum</label>
@@ -52,20 +55,15 @@
                                        t-on-change="onDateChange"/>
                             </div>
                             <div class="col-sm-4">
-                                <label class="form-label" for="eb_zip">Postcode</label>
-                                <input id="eb_zip" type="text" class="form-control"
-                                       placeholder="9000" t-model="state.zip"/>
+                                <label class="form-label" for="eb_guests">
+                                    <t t-esc="state.config.guest.label"/>
+                                </label>
+                                <input id="eb_guests" type="number" class="form-control"
+                                       t-att-min="state.config.guest.min"
+                                       t-att-max="state.config.guest.max"
+                                       t-att-value="state.guestCount"
+                                       t-on-change="onGuestCountChange"/>
                             </div>
-                        </div>
-                        <div class="mt-3">
-                            <label class="form-label" for="eb_guests">
-                                <t t-esc="state.config.guest.label"/>
-                            </label>
-                            <input id="eb_guests" type="number" class="form-control"
-                                   t-att-min="state.config.guest.min"
-                                   t-att-max="state.config.guest.max"
-                                   t-att-value="state.guestCount"
-                                   t-on-change="onGuestCountChange"/>
                         </div>
                     </div>
                 </div>
@@ -235,45 +233,57 @@
                             </t>
                         </div>
 
-                        <!-- Contactgegevens: vervangt de adresstap van een
-                             klassieke checkout. -->
-                        <div t-if="state.quote and state.quote.lines.length" class="mt-3">
+                        <!-- ===== Adressen: enkel voor ingelogde klanten ===== -->
+                        <div t-if="state.isLoggedIn and state.addresses and state.quote and state.quote.lines.length"
+                             class="mt-3">
                             <hr/>
-                            <label class="form-label small mb-1" for="eb_name">Naam *</label>
-                            <input id="eb_name" type="text" class="form-control form-control-sm mb-2"
-                                   placeholder="Voor- en achternaam"
-                                   t-model="state.contact.name"/>
 
-                            <label class="form-label small mb-1" for="eb_email">E-mail *</label>
-                            <input id="eb_email" type="email" class="form-control form-control-sm mb-2"
-                                   t-att-class="{ 'is-invalid': state.contact.email and !isEmailValid }"
-                                   placeholder="jij@bedrijf.be"
-                                   t-model="state.contact.email"/>
+                            <!-- Leveradres. Samengevouwen: één regel. -->
+                            <t t-call="event_builder.AddressRow">
+                                <t t-set="type" t-value="'delivery'"/>
+                                <t t-set="label" t-value="'Leveren naar'"/>
+                                <t t-set="addr" t-value="address('delivery')"/>
+                            </t>
 
-                            <div class="row g-2">
-                                <div class="col-6">
-                                    <label class="form-label small mb-1" for="eb_phone">Telefoon</label>
-                                    <input id="eb_phone" type="tel" class="form-control form-control-sm"
-                                           t-model="state.contact.phone"/>
-                                </div>
-                                <div class="col-6">
-                                    <label class="form-label small mb-1" for="eb_company">Bedrijf</label>
-                                    <input id="eb_company" type="text" class="form-control form-control-sm"
-                                           t-model="state.contact.company_name"/>
-                                </div>
+                            <!-- Factuuradres. Verbergen zolang het vinkje
+                                 aanstaat: dan is er niets te kiezen. -->
+                            <div class="form-check small mt-2 mb-1">
+                                <input class="form-check-input" type="checkbox" id="eb_same_addr"
+                                       t-model="state.useDeliveryAsBilling"/>
+                                <label class="form-check-label" for="eb_same_addr">
+                                    Factuuradres is hetzelfde
+                                </label>
                             </div>
+                            <t t-if="!state.useDeliveryAsBilling">
+                                <t t-call="event_builder.AddressRow">
+                                    <t t-set="type" t-value="'invoice'"/>
+                                    <t t-set="label" t-value="'Factuur naar'"/>
+                                    <t t-set="addr" t-value="address('invoice')"/>
+                                </t>
+                            </t>
                         </div>
 
+                        <!-- De knop is nooit een dode grijze knop: hij zegt wat
+                             de volgende stap is en brengt je er ook naartoe. -->
                         <button class="btn btn-primary w-100 mt-3"
-                                t-att-disabled="!canSubmit"
-                                t-on-click="onSubmit">
+                                t-att-disabled="state.submitting or !hasValidSelection"
+                                t-on-click="onPrimaryAction">
                             <span t-if="state.submitting" class="spinner-border spinner-border-sm me-1"/>
-                            <t t-if="hasPrepayment">
-                                Boek met <t t-esc="formatPrice(prepaymentAmount)"/> voorschot
-                            </t>
-                            <t t-else="">Bestellen</t>
+                            <span t-if="!state.isLoggedIn" class="fa fa-sign-in me-1"/>
+                            <t t-esc="submitLabel"/>
                         </button>
-                        <div class="text-muted small text-center mt-2">
+
+                        <div t-if="!state.isLoggedIn" class="text-muted small text-center mt-2">
+                            Je keuze blijft bewaard terwijl je inlogt.
+                        </div>
+                        <div t-elif="isAddressDirty" class="text-primary small text-center mt-2">
+                            Je hebt je adres aangepast maar nog niet bewaard.
+                        </div>
+                        <div t-elif="incompleteAddresses.length" class="text-muted small text-center mt-2">
+                            Nog aan te vullen:
+                            <t t-esc="incompleteAddresses.join(' en ')"/>
+                        </div>
+                        <div t-else="" class="text-muted small text-center mt-2">
                             Je krijgt eerst je offerte te zien - je betaalt pas daarna.
                         </div>
                     </div>
@@ -306,6 +316,140 @@
                 </div>
                 <button class="btn btn-primary flex-shrink-0" t-on-click="goToSummary">
                     Bekijk &amp; boek
+                </button>
+            </div>
+        </div>
+    </div>
+</t>
+
+<!--
+  Eén adresregel: samengevouwen tekst, uitgeklapt een formulier.
+
+  Deze template wordt met t-call twee keer gebruikt, voor het lever- en het
+  factuuradres. De aanroeper zet `type`, `label` en `addr` met t-set; binnen
+  de template zijn dat gewone variabelen.
+-->
+<t t-name="event_builder.AddressRow">
+    <div class="border rounded p-2 mb-2"
+         t-att-class="{
+             'border-warning': addr and !addr.is_complete,
+             'border-primary': state.expandedAddress === type and isAddressDirty,
+         }">
+
+        <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1 me-2">
+                <div class="text-muted small"><t t-esc="label"/></div>
+                <div class="small" t-if="addr and addr.display">
+                    <t t-esc="addr.display"/>
+                </div>
+                <div class="small text-muted fst-italic" t-else="">
+                    Nog geen adres
+                </div>
+            </div>
+            <button class="btn btn-link btn-sm p-0 text-decoration-none flex-shrink-0"
+                    t-att-aria-expanded="state.expandedAddress === type ? 'true' : 'false'"
+                    t-on-click="() => this.toggleAddress(type)">
+                <span t-if="state.expandedAddress === type" class="fa fa-chevron-up"/>
+                <span t-else="" class="fa fa-pencil"/>
+            </button>
+        </div>
+
+        <div t-if="addr and !addr.is_complete and state.expandedAddress !== type"
+             class="small text-warning mt-1">
+            Nog aan te vullen
+        </div>
+
+        <!-- ===== Uitgeklapt: het formulier ===== -->
+        <div t-if="state.expandedAddress === type and state.addressDraft" class="mt-2 pt-2 border-top">
+
+            <!-- De selectie bepalen we met een methode op de component en niet
+                 met een uitdrukking in de template. OWL laat in templates maar
+                 een korte lijst globals toe (zie RESERVED_WORDS in owl.js);
+                 String() hoort daar niet bij en laat de render stilletjes
+                 crashen. -->
+            <select class="form-select form-select-sm mb-2" t-on-change="onAddressChoice">
+                <option t-foreach="state.addresses.choices" t-as="choice" t-key="choice.id"
+                        t-att-value="choice.id"
+                        t-att-selected="isCurrentChoice(choice.id)">
+                    <t t-esc="choice.label"/>
+                </option>
+                <option value="new" t-att-selected="!state.addressDraft.partner_id">
+                    Nieuw adres...
+                </option>
+            </select>
+
+            <!-- Een sterretje op de verplichte velden. Welke dat zijn, komt
+                 van de server en hangt af van het land. -->
+            <input type="text" class="form-control form-control-sm mb-2"
+                   t-att-placeholder="fieldLabel('name', 'Naam')"
+                   t-att-class="{ 'is-invalid': isMissingField('name') }"
+                   t-model="state.addressDraft.name"/>
+            <input type="text" class="form-control form-control-sm mb-2"
+                   t-att-placeholder="fieldLabel('street', 'Straat en nummer')"
+                   t-att-class="{ 'is-invalid': isMissingField('street') }"
+                   t-model="state.addressDraft.street"/>
+            <div class="row g-2 mb-2">
+                <div class="col-4">
+                    <input type="text" class="form-control form-control-sm"
+                           t-att-placeholder="fieldLabel('zip', 'Postcode')"
+                           t-att-class="{ 'is-invalid': isMissingField('zip') }"
+                           t-model="state.addressDraft.zip"/>
+                </div>
+                <div class="col-8">
+                    <input type="text" class="form-control form-control-sm"
+                           t-att-placeholder="fieldLabel('city', 'Gemeente')"
+                           t-att-class="{ 'is-invalid': isMissingField('city') }"
+                           t-model="state.addressDraft.city"/>
+                </div>
+            </div>
+            <select class="form-select form-select-sm mb-2" t-on-change="onCountryChange">
+                <option value="">Land...</option>
+                <option t-foreach="countries" t-as="country" t-key="country.id"
+                        t-att-value="country.id"
+                        t-att-selected="isCurrentCountry(country.id)">
+                    <t t-esc="country.name"/>
+                </option>
+            </select>
+            <div t-if="state.countriesLoading" class="text-muted small mb-2">Landen laden...</div>
+            <select t-if="draftStates.length" class="form-select form-select-sm mb-2"
+                    t-model="state.addressDraft.state_id">
+                <option value="">Provincie...</option>
+                <option t-foreach="draftStates" t-as="st" t-key="st.id" t-att-value="st.id">
+                    <t t-esc="st.name"/>
+                </option>
+            </select>
+            <input type="tel" class="form-control form-control-sm mb-2"
+                   t-att-placeholder="fieldLabel('phone', 'Telefoon')"
+                   t-att-class="{ 'is-invalid': isMissingField('phone') }"
+                   t-model="state.addressDraft.phone"/>
+            <input type="email" class="form-control form-control-sm mb-2"
+                   t-att-placeholder="fieldLabel('email', 'E-mail')"
+                   t-att-class="{ 'is-invalid': isMissingField('email') }"
+                   t-model="state.addressDraft.email"/>
+
+            <div t-if="state.addressError" class="alert alert-danger py-1 px-2 small">
+                <t t-esc="state.addressError"/>
+            </div>
+
+            <!-- Zolang er iets gewijzigd is, valt de Bewaren-knop op en staat
+                 er expliciet bij dat het nog niet opgeslagen is. Boeken is
+                 tot zolang geblokkeerd. -->
+            <div t-if="isAddressDirty" class="small text-primary mb-2">
+                <span class="fa fa-pencil me-1"/>Nog niet opgeslagen
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm flex-grow-1"
+                        t-att-class="isAddressDirty ? 'btn-primary' : 'btn-outline-primary'"
+                        t-att-disabled="state.addressSaving"
+                        t-on-click="saveAddress">
+                    <span t-if="state.addressSaving" class="spinner-border spinner-border-sm me-1"/>
+                    Bewaren
+                </button>
+                <button class="btn btn-sm btn-link text-muted text-decoration-none"
+                        t-att-disabled="state.addressSaving"
+                        t-on-click="cancelAddressEdit">
+                    Annuleren
                 </button>
             </div>
         </div>

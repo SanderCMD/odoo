@@ -2,20 +2,28 @@
 from datetime import timedelta
 
 from odoo import _, fields
-from odoo.exceptions import UserError, ValidationError
-from odoo.tools import email_normalize
-from odoo.http import Controller, request, route
+from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.http import request, route
+
+from odoo.addons.portal.controllers.portal import CustomerPortal
 
 
-class EventBuilderController(Controller):
-    """De drie webadressen waarmee de configurator in de browser praat.
+# We erven van CustomerPortal in plaats van van Controller. Niet voor de
+# routes, maar voor de adresregels: `_get_mandatory_billing_address_fields` en
+# `_get_mandatory_delivery_address_fields` staan daar. Zo gebruikt de
+# configurator exact dezelfde verplichte velden als het klantenportaal en de
+# webshop, inclusief de landafhankelijke uitzonderingen. website_sale doet
+# hetzelfde (WebsiteSale erft via PaymentPortal van CustomerPortal).
+class EventBuilderController(CustomerPortal):
+    """De webadressen waarmee de configurator in de browser praat.
 
     Elke `@route` is een URL. De belangrijkste argumenten:
 
     - type='jsonrpc' : de browser stuurt JSON en krijgt JSON terug.
                        Voor gewone HTML-pagina's gebruik je type='http'.
-    - auth='public'  : ook niet-ingelogde bezoekers mogen hier binnen. Dat is
-                       cruciaal: we willen geen login vragen voor een prijs.
+    - auth='public'  : ook niet-ingelogde bezoekers mogen hier binnen.
+      auth='user'    : enkel ingelogde klanten. Kijken en prijzen berekenen is
+                       publiek; boeken en adressen beheren niet.
     - website=True   : Odoo laadt de juiste website, taal en prijslijst in de
                        context vooraleer onze code draait.
     - readonly=True  : belooft dat deze route niets wegschrijft, waardoor Odoo
@@ -91,25 +99,28 @@ class EventBuilderController(Controller):
         }
 
     # ------------------------------------------------------------------
-    # Routes
+    # Routes: structuur en prijs (publiek)
     # ------------------------------------------------------------------
 
     @route('/event_builder/config', type='jsonrpc', auth='public', website=True, readonly=True)
     def event_builder_config(self, config_id=None, **kwargs):
-        """Stap 1: de configurator haalt bij het laden zijn structuur op."""
+        """De configurator haalt bij het laden zijn structuur op."""
         config = self._get_config(config_id)
-        return config._get_website_data(pricelist=request.pricelist)
+        data = config._get_website_data(pricelist=request.pricelist)
+        # De browser moet weten of hij de boekknop of een loginknop toont.
+        data['is_logged_in'] = not request.env.user._is_public()
+        return data
 
     @route('/event_builder/price', type='jsonrpc', auth='public', website=True, readonly=True)
     def event_builder_price(
         self, config_id=None, guest_count=0, date_from=None, date_to=None, option_ids=None, **kwargs
     ):
-        """Stap 2: bij elke klik de prijs herberekenen.
+        """Bij elke klik de prijs herberekenen.
 
         Deze route wordt vaak aangeroepen (elke klik, elke wijziging van het
         aantal personen), dus de JavaScript-kant stuurt ze vertraagd
-        ("debounced"). Ze schrijft niets weg: er ontstaat geen winkelmandje
-        zolang de bezoeker alleen maar aan het rondkijken is.
+        ("debounced"). Ze schrijft niets weg: er ontstaat geen offerte zolang
+        de bezoeker alleen maar aan het rondkijken is.
         """
         config = self._get_config(config_id)
         selection = self._parse_selection(
@@ -124,68 +135,249 @@ class EventBuilderController(Controller):
         quote['days'] = selection['days']
         return quote
 
-    def _get_partner(self, contact):
-        """Bepaal de klant voor wie we de offerte maken.
+    # ------------------------------------------------------------------
+    # Adressen (enkel ingelogd)
+    # ------------------------------------------------------------------
 
-        Is de bezoeker ingelogd, dan gebruiken we zijn eigen contact. Is hij
-        anoniem, dan maken we ALTIJD een nieuw contact aan - we zoeken bewust
-        niet op e-mailadres. Zouden we dat wel doen, dan kan iedereen die het
-        e-mailadres van een bestaande klant kent een offerte aan diens contact
-        hangen, en die daarna via het portaal openen. Dubbele contacten zijn
-        vervelend; een datalek is erger.
+    def _eb_mandatory_fields(self, address_type, country_sudo):
+        """De verplichte velden voor dit adrestype, volgens Odoo zelf.
+
+        Deze twee methodes komen uit CustomerPortal en houden rekening met het
+        land: België vraagt geen provincie, de Verenigde Staten wel. Zelf een
+        lijstje bijhouden zou binnen een maand afwijken van de rest van Odoo.
         """
-        if not request.env.user._is_public():
-            return request.env.user.partner_id
+        if address_type == 'invoice':
+            field_names = self._get_mandatory_billing_address_fields(country_sudo)
+        else:
+            field_names = self._get_mandatory_delivery_address_fields(country_sudo)
 
-        name = (contact.get('name') or '').strip()
-        email = email_normalize(contact.get('email') or '')
-        if not name:
-            raise ValidationError(_("Vul je naam in."))
-        if not email:
-            raise ValidationError(_("Vul een geldig e-mailadres in."))
+        # De postcode is bij ons ALTIJD verplicht, ook in landen waar Odoo
+        # hem optioneel vindt (`country.zip_required` staat voor Belgie uit).
+        # Wij hebben hem nodig om te bepalen of we ergens kunnen leveren en
+        # straks wat het transport kost.
+        #
+        # Bewust hier en niet door `_get_mandatory_address_fields` te
+        # overschrijven: die methode is van CustomerPortal, en een override
+        # zou de postcode ook verplicht maken in het klantenportaal en de
+        # webshop-checkout. Deze regel geldt alleen voor de Event Builder.
+        return field_names | {'zip'}
 
-        return request.env['res.partner'].sudo().create({
-            'name': name,
-            'email': email,
-            'phone': (contact.get('phone') or '').strip() or False,
-            'company_name': (contact.get('company_name') or '').strip() or False,
-            'zip': (contact.get('zip_code') or '').strip() or False,
-            # Zo herken je later in het ERP waar dit contact vandaan komt.
-            'comment': _("Aangemaakt via de Event Builder op de website."),
-        })
+    def _eb_allowed_addresses(self):
+        """De adressen die deze ingelogde klant mag kiezen of bewerken.
 
-    @route('/event_builder/submit', type='jsonrpc', auth='public', website=True)
+        Elke adres-id die de browser doorstuurt, wordt hiertegen gecontroleerd.
+        Zonder die controle zou iemand met aangepaste JavaScript een
+        willekeurig contact-id kunnen opgeven en zo andermans adres uitlezen
+        of overschrijven.
+        """
+        partner_sudo = request.env.user.partner_id.sudo()
+        return request.env['res.partner'].sudo()._eb_selectable_addresses(partner_sudo)
+
+    def _eb_check_address(self, partner_id):
+        """Zet een doorgestuurd adres-id om in een record, of weiger het."""
+        allowed = self._eb_allowed_addresses()
+        partner_sudo = allowed.filtered(lambda p: p.id == int(partner_id))
+        if not partner_sudo:
+            raise AccessError(_("Dit adres hoort niet bij je account."))
+        return partner_sudo
+
+    def _eb_address_payload(self, partner_sudo, address_type):
+        """Een adres plus de velden die er nog aan ontbreken."""
+        data = partner_sudo._eb_address_data()
+        mandatory = self._eb_mandatory_fields(address_type, partner_sudo.country_id)
+        # `mandatory` gaat mee naar de browser zodat het formulier kan tonen
+        # welke velden verplicht zijn. Zonder die lijst raadt de klant waarom
+        # de boekknop niet meewerkt.
+        data['mandatory'] = sorted(mandatory)
+        data['missing'] = sorted(f for f in mandatory if not partner_sudo[f])
+        data['is_complete'] = not data['missing']
+        return data
+
+    def _eb_states(self, countries_sudo):
+        """De provincies of staten van de opgegeven landen."""
+        if not countries_sudo:
+            return []
+        states = request.env['res.country.state'].sudo().search([
+            ('country_id', 'in', countries_sudo.ids),
+        ])
+        return [{
+            'id': state.id,
+            'name': state.display_name,
+            'country_id': state.country_id.id,
+        } for state in states]
+
+    def _eb_addresses_payload(self):
+        """Alles wat de adreskiezer nodig heeft voor de ingelogde klant."""
+        Partner = request.env['res.partner'].sudo()
+        partner_sudo = request.env.user.partner_id.sudo()
+
+        # `address_get` doorzoekt de onderliggende adressen naar het gevraagde
+        # type en valt terug op de klant zelf. Heeft de klant een echt
+        # factuuradres, dan krijgt hij dat voorgesteld; heeft hij er geen, dan
+        # zijn eigen contact.
+        defaults = partner_sudo.address_get(['delivery', 'invoice'])
+        delivery_sudo = Partner.browse(defaults.get('delivery') or partner_sudo.id)
+        invoice_sudo = Partner.browse(defaults.get('invoice') or partner_sudo.id)
+
+        return {
+            'delivery': self._eb_address_payload(delivery_sudo, 'delivery'),
+            'invoice': self._eb_address_payload(invoice_sudo, 'invoice'),
+            # Standaard naar hetzelfde adres factureren, TENZIJ de klant een
+            # apart factuuradres heeft staan. Dan respecteren we die keuze.
+            'use_delivery_as_billing': invoice_sudo.id == delivery_sudo.id,
+            'choices': [{
+                'id': address.id,
+                'label': address.display_name,
+                'display': address._eb_address_line(),
+            } for address in self._eb_allowed_addresses()],
+            'states': self._eb_states(delivery_sudo.country_id | invoice_sudo.country_id),
+        }
+
+    @route('/event_builder/address/countries', type='jsonrpc', auth='user', website=True, readonly=True)
+    def event_builder_address_countries(self, **kwargs):
+        """De landenlijst, apart en pas op aanvraag.
+
+        Bewust niet meegestuurd met elk adresantwoord: de lijst verandert
+        nooit, terwijl adressen bij elke wijziging opnieuw opgehaald worden.
+        De browser haalt ze één keer op zodra iemand een adresformulier
+        openklapt, en houdt ze daarna bij. Wie nooit een adres bewerkt,
+        downloadt ze dus ook nooit.
+        """
+        return {'countries': [{
+            'id': country.id,
+            'name': country.display_name,
+            'state_required': country.state_required,
+            'zip_required': country.zip_required,
+        } for country in request.env['res.country'].sudo().search([])]}
+
+    @route('/event_builder/addresses', type='jsonrpc', auth='user', website=True, readonly=True)
+    def event_builder_addresses(self, **kwargs):
+        """Het lever- en factuuradres van de ingelogde klant ophalen."""
+        return self._eb_addresses_payload()
+
+    @route('/event_builder/address/select', type='jsonrpc', auth='user', website=True, readonly=True)
+    def event_builder_address_select(self, address_type, partner_id, **kwargs):
+        """Een ander bestaand adres kiezen, zonder iets te wijzigen.
+
+        Bewust een eigen route en niet /address/save: die zou de waarden uit
+        het formulier wegschrijven, en dat zijn bij een wissel nog die van het
+        vórige adres. Kiezen is lezen, geen schrijven.
+        """
+        if address_type not in ('delivery', 'invoice'):
+            raise ValidationError(_("Onbekend adrestype."))
+        partner_sudo = self._eb_check_address(partner_id)
+        return {
+            'address': self._eb_address_payload(partner_sudo, address_type),
+            'states': self._eb_states(partner_sudo.country_id),
+        }
+
+    @route('/event_builder/address/states', type='jsonrpc', auth='user', website=True, readonly=True)
+    def event_builder_address_states(self, country_id, **kwargs):
+        """De provincies van een land, opgehaald zodra de klant het land wijzigt."""
+        country_sudo = request.env['res.country'].sudo().browse(int(country_id)).exists()
+        return {'states': self._eb_states(country_sudo)}
+
+    @route('/event_builder/address/save', type='jsonrpc', auth='user', website=True)
+    def event_builder_address_save(self, address_type, values=None, partner_id=None, **kwargs):
+        """Een adres aanvullen of een nieuw adres aanmaken.
+
+        Zonder `partner_id` maken we een NIEUW adres onder de klant, met het
+        juiste type. Het hoofdcontact blijft dan ongemoeid, wat vaak klopt: het
+        leveradres van een event is een zaal of een weide, geen bedrijfsadres.
+        """
+        if address_type not in ('delivery', 'invoice'):
+            raise ValidationError(_("Onbekend adrestype."))
+
+        Partner = request.env['res.partner'].sudo()
+
+        # Enkel velden die de adreskiezer kent. Zo kan aangepaste JavaScript
+        # geen andere velden meeschrijven, bijvoorbeeld `user_ids`.
+        allowed_fields = set(Partner.EB_ADDRESS_FIELDS)
+        vals = {k: v for k, v in (values or {}).items() if k in allowed_fields}
+        for fname in ('state_id', 'country_id'):
+            if fname in vals:
+                vals[fname] = int(vals[fname]) if vals[fname] else False
+
+        if partner_id:
+            partner_sudo = self._eb_check_address(partner_id)
+            partner_sudo.write(vals)
+        else:
+            commercial_sudo = request.env.user.partner_id.sudo().commercial_partner_id
+            partner_sudo = Partner.create(dict(
+                vals,
+                type=address_type,
+                parent_id=commercial_sudo.id,
+            ))
+
+        # Pas na het opslaan controleren, met het land zoals het nu is: een
+        # klant die van België naar de VS wisselt, heeft plots een staat nodig.
+        return {
+            'address': self._eb_address_payload(partner_sudo, address_type),
+            'addresses': self._eb_addresses_payload(),
+        }
+
+    # ------------------------------------------------------------------
+    # Boeken (enkel ingelogd)
+    # ------------------------------------------------------------------
+
+    @route('/event_builder/submit', type='jsonrpc', auth='user', website=True)
     def event_builder_submit(
         self, config_id=None, guest_count=0, date_from=None, date_to=None,
-        zip_code=None, option_ids=None, contact=None, **kwargs
+        zip_code=None, option_ids=None,
+        delivery_id=None, invoice_id=None, use_delivery_as_billing=True,
+        **kwargs
     ):
-        """Stap 3: zet de selectie om in een offerte en stuur de klant erheen.
+        """Zet de selectie om in een offerte en stuur de klant erheen.
 
-        Pas hier ontstaat er iets in de database. De bezoeker komt terecht op
-        zijn eigen offertepagina in het klantenportaal, waar Odoo hem zonder
-        verdere code de knop "Betaal het voorschot" toont.
+        `auth='user'` in plaats van 'public': enkel ingelogde klanten kunnen
+        boeken. Kijken en prijzen berekenen blijft publiek, want dat is het
+        verkoopargument van het platform.
 
-        De toegang verloopt via een `access_token` in de URL: een lang, willekeurig
-        token dat aan de offerte hangt. Daarmee kan een niet-ingelogde klant zijn
-        eigen offerte bekijken en betalen, en niets anders.
+        De klant komt terecht op zijn eigen offerte in het klantenportaal,
+        waar Odoo zonder verdere code de knop toont om het voorschot te
+        betalen.
         """
         config = self._get_config(config_id)
         selection = self._parse_selection(
             config, guest_count, date_from, date_to, option_ids)
 
-        contact = dict(contact or {}, zip_code=zip_code)
-        partner = self._get_partner(contact)
+        partner_sudo = request.env.user.partner_id.sudo()
+        delivery_sudo = self._eb_check_address(delivery_id) if delivery_id else partner_sudo
+        if use_delivery_as_billing or not invoice_id:
+            invoice_sudo = delivery_sudo
+        else:
+            invoice_sudo = self._eb_check_address(invoice_id)
+
+        # De controle uit de browser nog eens overdoen. Wie de knop met
+        # aangepaste JavaScript toch indrukt, botst hierop.
+        for address_sudo, address_type, label in (
+            (delivery_sudo, 'delivery', _("leveradres")),
+            (invoice_sudo, 'invoice', _("factuuradres")),
+        ):
+            missing = [
+                fname
+                for fname in self._eb_mandatory_fields(address_type, address_sudo.country_id)
+                if not address_sudo[fname]
+            ]
+            if missing:
+                raise ValidationError(_("Vul je %(label)s aan voor je boekt.", label=label))
 
         order_sudo = config._create_quotation(
-            partner=partner,
+            partner=partner_sudo,
             option_ids=selection['option_ids'],
             guest_count=selection['guest_count'],
             days=selection['days'],
             logistics={
                 'date_from': selection['date_from'],
                 'date_to': selection['date_to'],
-                'zip_code': zip_code,
+                # De postcode komt uit het leveradres. De configurator vraagt
+                # ze niet meer apart: daar zou ze kunnen afwijken van het adres
+                # waar we effectief leveren. Wordt later de basis voor
+                # leverzones en transportkosten.
+                'zip_code': delivery_sudo.zip or zip_code,
             },
+            delivery=delivery_sudo,
+            invoice=invoice_sudo,
         )
 
         return {
