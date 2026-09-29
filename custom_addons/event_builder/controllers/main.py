@@ -57,7 +57,7 @@ class EventBuilderController(CustomerPortal):
         # een vers op de pagina gesleept blok meteen iets laat zien.
         config = request.env['event.builder.config'].sudo().search(domain, limit=1)
         if not config:
-            raise UserError(_("Deze configurator bestaat niet of is niet actief."))
+            raise UserError(_("This configurator does not exist or is not active."))
         return config
 
     def _parse_selection(self, config, guest_count, date_from, date_to, option_ids):
@@ -77,13 +77,13 @@ class EventBuilderController(CustomerPortal):
         date_to = fields.Date.to_date(date_to)
 
         if date_from and date_to and date_to < date_from:
-            raise ValidationError(_("De ophaaldatum kan niet voor de leverdatum liggen."))
+            raise ValidationError(_("The pickup date cannot be before the delivery date."))
 
         if date_from and config.min_lead_days:
             earliest = fields.Date.today() + timedelta(days=config.min_lead_days)
             if date_from < earliest:
                 raise ValidationError(_(
-                    "Een event kan ten vroegste %(days)s dagen op voorhand geboekt worden.",
+                    "An event can be booked at the earliest %(days)s days in advance.",
                     days=config.min_lead_days,
                 ))
 
@@ -178,7 +178,7 @@ class EventBuilderController(CustomerPortal):
         allowed = self._eb_allowed_addresses()
         partner_sudo = allowed.filtered(lambda p: p.id == int(partner_id))
         if not partner_sudo:
-            raise AccessError(_("Dit adres hoort niet bij je account."))
+            raise AccessError(_("This address does not belong to your account."))
         return partner_sudo
 
     def _eb_address_payload(self, partner_sudo, address_type):
@@ -191,6 +191,34 @@ class EventBuilderController(CustomerPortal):
         data['mandatory'] = sorted(mandatory)
         data['missing'] = sorted(f for f in mandatory if not partner_sudo[f])
         data['is_complete'] = not data['missing']
+
+        # Alleen onderliggende adressen mogen hernoemd worden. Op een
+        # hoofdcontact - de klant zelf of zijn bedrijf - is `name` de naam van
+        # de KLANT, en die aanpassen vanuit een adresformulier hernoemt hem in
+        # het hele ERP: op zijn offertes, facturen en in de klantenlijst.
+        data['can_rename'] = bool(partner_sudo.parent_id)
+
+        # --- VAT number ---
+        #
+        # `vat` is in Odoo een "commercial field": het hoort bij de juridische
+        # entiteit, niet bij een los adres. Zie res_partner._synced_commercial_fields:
+        # wijzig je het op een kindadres, dan propageert Odoo het naar de
+        # commerciele partner. Een ander btw-nummer per billing address bestaat
+        # dus niet, en dat is juist - het nummer hoort bij het bedrijf.
+        #
+        # We tonen het daarom als "het btw-nummer van je account" en schrijven
+        # het ook daarheen, in plaats van te doen alsof het per adres kan.
+        commercial_sudo = partner_sudo.commercial_partner_id
+        data['vat'] = commercial_sudo.vat or ''
+        # Het land bepaalt hoe het nummer heet: "BTW" hier, "VAT" elders,
+        # "SIRET" in Frankrijk. Odoo houdt dat bij op res.country.
+        data['vat_label'] = request.env.company.country_id.vat_label or _("VAT number")
+        # Odoo blokkeert het wijzigen zodra er facturen uitgestuurd zijn
+        # (account/models/partner.py, can_edit_vat).
+        data['can_edit_vat'] = (
+            commercial_sudo.can_edit_vat()
+            if hasattr(commercial_sudo, 'can_edit_vat') else True
+        )
         return data
 
     def _eb_states(self, countries_sudo):
@@ -213,7 +241,7 @@ class EventBuilderController(CustomerPortal):
 
         # `address_get` doorzoekt de onderliggende adressen naar het gevraagde
         # type en valt terug op de klant zelf. Heeft de klant een echt
-        # factuuradres, dan krijgt hij dat voorgesteld; heeft hij er geen, dan
+        # billing address, dan krijgt hij dat voorgesteld; heeft hij er geen, dan
         # zijn eigen contact.
         defaults = partner_sudo.address_get(['delivery', 'invoice'])
         delivery_sudo = Partner.browse(defaults.get('delivery') or partner_sudo.id)
@@ -223,7 +251,7 @@ class EventBuilderController(CustomerPortal):
             'delivery': self._eb_address_payload(delivery_sudo, 'delivery'),
             'invoice': self._eb_address_payload(invoice_sudo, 'invoice'),
             # Standaard naar hetzelfde adres factureren, TENZIJ de klant een
-            # apart factuuradres heeft staan. Dan respecteren we die keuze.
+            # apart billing address heeft staan. Dan respecteren we die keuze.
             'use_delivery_as_billing': invoice_sudo.id == delivery_sudo.id,
             'choices': [{
                 'id': address.id,
@@ -252,7 +280,7 @@ class EventBuilderController(CustomerPortal):
 
     @route('/event_builder/addresses', type='jsonrpc', auth='user', website=True, readonly=True)
     def event_builder_addresses(self, **kwargs):
-        """Het lever- en factuuradres van de ingelogde klant ophalen."""
+        """Het lever- en billing address van de ingelogde klant ophalen."""
         return self._eb_addresses_payload()
 
     @route('/event_builder/address/select', type='jsonrpc', auth='user', website=True, readonly=True)
@@ -264,7 +292,7 @@ class EventBuilderController(CustomerPortal):
         vórige adres. Kiezen is lezen, geen schrijven.
         """
         if address_type not in ('delivery', 'invoice'):
-            raise ValidationError(_("Onbekend adrestype."))
+            raise ValidationError(_("Unknown address type."))
         partner_sudo = self._eb_check_address(partner_id)
         return {
             'address': self._eb_address_payload(partner_sudo, address_type),
@@ -277,16 +305,49 @@ class EventBuilderController(CustomerPortal):
         country_sudo = request.env['res.country'].sudo().browse(int(country_id)).exists()
         return {'states': self._eb_states(country_sudo)}
 
+    def _eb_save_vat(self, partner_sudo, vat):
+        """Het btw-nummer wegschrijven op de commerciele partner.
+
+        Niet op het adres zelf: `vat` staat in `_synced_commercial_fields`
+        (odoo/addons/base/models/res_partner.py), wat betekent dat Odoo een
+        wijziging op een kindadres tóch doorschuift naar de commerciele
+        entiteit. Eén nummer per bedrijf, niet per adres - en dat klopt, want
+        een btw-nummer hoort bij de rechtspersoon.
+
+        Wij schrijven het meteen op de juiste plek, zodat het gedrag
+        voorspelbaar is in plaats van dat Odoo het achteraf verplaatst.
+        """
+        if not vat:
+            return
+
+        commercial_sudo = partner_sudo.commercial_partner_id
+        if commercial_sudo.vat == vat:
+            return
+
+        # Odoo weigert een wijziging zodra er facturen uitgestuurd zijn.
+        if hasattr(commercial_sudo, 'can_edit_vat') and not commercial_sudo.can_edit_vat():
+            raise ValidationError(_(
+                "Your VAT number can no longer be changed because invoices"
+                " have already been issued. Please contact us about this."
+            ))
+
+        # De controle van Odoo zelf gebruiken (zit in de module `account`),
+        # zodat een ongeldig nummer hier dezelfde foutmelding geeft als in de
+        # rest van het systeem.
+        commercial_sudo.write({'vat': vat})
+        if hasattr(commercial_sudo, '_check_vat'):
+            commercial_sudo._check_vat()
+
     @route('/event_builder/address/save', type='jsonrpc', auth='user', website=True)
     def event_builder_address_save(self, address_type, values=None, partner_id=None, **kwargs):
         """Een adres aanvullen of een nieuw adres aanmaken.
 
         Zonder `partner_id` maken we een NIEUW adres onder de klant, met het
         juiste type. Het hoofdcontact blijft dan ongemoeid, wat vaak klopt: het
-        leveradres van een event is een zaal of een weide, geen bedrijfsadres.
+        delivery address van een event is een zaal of een weide, geen bedrijfsadres.
         """
         if address_type not in ('delivery', 'invoice'):
-            raise ValidationError(_("Onbekend adrestype."))
+            raise ValidationError(_("Unknown address type."))
 
         Partner = request.env['res.partner'].sudo()
 
@@ -298,8 +359,17 @@ class EventBuilderController(CustomerPortal):
             if fname in vals:
                 vals[fname] = int(vals[fname]) if vals[fname] else False
 
+        # Het btw-nummer hoort bij de juridische entiteit, niet bij een adres.
+        # We halen het uit de gewone adreswaarden en behandelen het apart.
+        vat = (vals.pop('vat', None) or '').strip()
+
         if partner_id:
             partner_sudo = self._eb_check_address(partner_id)
+            if not partner_sudo.parent_id:
+                # Een hoofdcontact: hier is `name` de naam van de klant zelf.
+                # Die laten we met rust, hoe de browser het ook aanlevert.
+                # De adresvelden mag hij wel aanvullen.
+                vals.pop('name', None)
             partner_sudo.write(vals)
         else:
             commercial_sudo = request.env.user.partner_id.sudo().commercial_partner_id
@@ -308,6 +378,8 @@ class EventBuilderController(CustomerPortal):
                 type=address_type,
                 parent_id=commercial_sudo.id,
             ))
+
+        self._eb_save_vat(partner_sudo, vat)
 
         # Pas na het opslaan controleren, met het land zoals het nu is: een
         # klant die van België naar de VS wisselt, heeft plots een staat nodig.
@@ -351,8 +423,8 @@ class EventBuilderController(CustomerPortal):
         # De controle uit de browser nog eens overdoen. Wie de knop met
         # aangepaste JavaScript toch indrukt, botst hierop.
         for address_sudo, address_type, label in (
-            (delivery_sudo, 'delivery', _("leveradres")),
-            (invoice_sudo, 'invoice', _("factuuradres")),
+            (delivery_sudo, 'delivery', _("delivery address")),
+            (invoice_sudo, 'invoice', _("billing address")),
         ):
             missing = [
                 fname
@@ -360,7 +432,7 @@ class EventBuilderController(CustomerPortal):
                 if not address_sudo[fname]
             ]
             if missing:
-                raise ValidationError(_("Vul je %(label)s aan voor je boekt.", label=label))
+                raise ValidationError(_("Complete your %(label)s before booking.", label=label))
 
         order_sudo = config._create_quotation(
             partner=partner_sudo,
@@ -370,7 +442,7 @@ class EventBuilderController(CustomerPortal):
             logistics={
                 'date_from': selection['date_from'],
                 'date_to': selection['date_to'],
-                # De postcode komt uit het leveradres. De configurator vraagt
+                # De postcode komt uit het delivery address. De configurator vraagt
                 # ze niet meer apart: daar zou ze kunnen afwijken van het adres
                 # waar we effectief leveren. Wordt later de basis voor
                 # leverzones en transportkosten.

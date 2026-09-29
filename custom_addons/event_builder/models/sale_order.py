@@ -16,18 +16,18 @@ class SaleOrder(models.Model):
 
     # --- Logistiek zoals de klant het in de configurator invult ---
 
-    event_delivery_date = fields.Date(string="Leverdatum")
-    event_pickup_date = fields.Date(string="Ophaaldatum")
-    event_guest_count = fields.Integer(string="Aantal personen")
-    event_zip = fields.Char(string="Postcode leverlocatie")
+    event_delivery_date = fields.Date(string="Delivery date")
+    event_pickup_date = fields.Date(string="Pickup date")
+    event_guest_count = fields.Integer(string="Guest count")
+    event_zip = fields.Char(string="Zip code")
     event_builder_config_id = fields.Many2one(
         comodel_name='event.builder.config',
-        string="Samengesteld via",
+        string="Built via",
         ondelete='set null',
     )
 
     event_duration_days = fields.Integer(
-        string="Duur (dagen)", compute='_compute_event_duration_days')
+        string="Duration (days)", compute='_compute_event_duration_days')
 
     # --- Opvolging van het voorschot ---
     #
@@ -37,15 +37,14 @@ class SaleOrder(models.Model):
     # de vraag die je elke dag stelt.
 
     event_prepayment_amount = fields.Monetary(
-        string="Verwacht voorschot",
+        string="Expected prepayment",
         compute='_compute_event_payment_amounts',
-        help="Het bedrag dat de klant online moet betalen om de boeking te "
-             "bevestigen.",
+        help="The amount that the customer must pay online to confirm the booking.",
     )
     event_amount_due = fields.Monetary(
-        string="Nog te betalen",
+        string="Total amount due",
         compute='_compute_event_payment_amounts',
-        help="Totaalbedrag min wat er al online betaald werd.",
+        help="Total amount minus what has already been paid online.",
     )
 
     @api.depends('amount_total', 'amount_paid', 'require_payment', 'prepayment_percent')
@@ -117,5 +116,5 @@ class SaleOrder(models.Model):
             ):
                 # `_()` markeert de tekst als vertaalbaar.
                 raise ValidationError(_(
-                    "De ophaaldatum kan niet voor de leverdatum liggen."
+                    "The pickup date cannot be before the delivery date."
                 ))

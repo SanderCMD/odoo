@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+      "/" laten wijzen naar onze pagina.
+
+      Odoo lost dit op met `reroute` en niet met een omleiding
+      (website/controllers/main.py, regel 106-108), dus de bezoeker blijft
+      gewoon op "/" staan in zijn adresbalk.
+
+      Zo blijft de oorspronkelijke website.homepage ongemoeid, inclusief de
+      website-specifieke kopie die de configurator ooit aanmaakte. Die
+      proberen te overschrijven zou een gevecht zijn dat we niet hoeven te
+      voeren: onze pagina wint gewoon omdat "/" ernaartoe wijst.
+
+      Bewust zonder noupdate, zodat een module-upgrade dit opnieuw zet.
+
+      NIET via `<field name="is_homepage" eval="True"/>` op de website.page,
+      ook al staat dat zo in de documentatie van Odoo 19
+      (developer/howtos/website_themes/pages). Dat werkt niet:
+
+        website/models/website_page.py:50
+          is_homepage = fields.Boolean(compute='_compute_is_homepage')
+
+      Geen `inverse`, en dan is `readonly` standaard True
+      (odoo/orm/fields.py:451). Het veld is dus niet schrijfbaar; het LEEST
+      `homepage_url` om te bepalen of een pagina de homepage is.
+
+      Alleen `website.page.properties` - het model achter het
+      eigenschappen-venster in de editor - heeft een inverse, en die doet op
+      zijn beurt exact wat hieronder staat: `website_id.homepage_url = url`.
+      Wij slaan die omweg over.
+    -->
+    <record id="website.default_website" model="website">
+        <field name="homepage_url">/bouw-je-feest-home</field>
+    </record>
+
+</odoo>

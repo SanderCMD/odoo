@@ -19,7 +19,7 @@ class ResPartner(models.Model):
     # niet had mogen wijzigen.
     EB_ADDRESS_FIELDS = (
         'name', 'street', 'street2', 'zip', 'city',
-        'state_id', 'country_id', 'phone', 'email',
+        'state_id', 'country_id', 'phone', 'email', 'vat',
     )
 
     def _eb_address_data(self):

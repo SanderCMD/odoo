@@ -2,6 +2,7 @@ import { Component, onWillStart, useRef, useState } from '@odoo/owl';
 import { rpc } from '@web/core/network/rpc';
 import { formatCurrency } from '@web/core/currency';
 import { debounce } from '@web/core/utils/timing';
+import { _t } from '@web/core/l10n/translation';
 
 /**
  * De configurator zelf.
@@ -44,7 +45,7 @@ export class EventBuilder extends Component {
             selectedOptionIds: [],
 
             // Adressen. Alleen van toepassing voor ingelogde klanten; de
-            // server vult ze zelf met het standaard lever- en factuuradres.
+            // server vult ze zelf met het standaard lever- en billing address.
             isLoggedIn: false,
             addresses: null,          // payload van /event_builder/addresses
             useDeliveryAsBilling: true,
@@ -53,6 +54,9 @@ export class EventBuilder extends Component {
             expandedAddress: null,
             addressDraft: null,       // de velden die nu bewerkt worden
             addressPristine: null,    // ijkpunt om wijzigingen te herkennen
+            canRenameAddress: true,   // false op een hoofdcontact
+            canEditVat: true,         // false zodra er facturen uitgingen
+            vatLabel: 'VAT number',   // heet anders per land
             addressSaving: false,
             addressError: null,
             // De landenlijst wordt pas opgehaald zodra iemand een adres
@@ -94,7 +98,7 @@ export class EventBuilder extends Component {
                     await this.refreshPrice();
                 }
             } catch {
-                this.state.error = 'De configurator kon niet geladen worden.';
+                this.state.error = _t('The configurator could not be loaded.');
             } finally {
                 this.state.loading = false;
             }
@@ -206,7 +210,7 @@ export class EventBuilder extends Component {
         return this.state.addresses?.[type] || null;
     }
 
-    /** Het factuuradres volgt het leveradres zodra het vinkje aanstaat. */
+    /** Het billing address volgt het delivery address zodra het vinkje aanstaat. */
     get effectiveInvoice() {
         return this.state.useDeliveryAsBilling
             ? this.address('delivery')
@@ -218,14 +222,25 @@ export class EventBuilder extends Component {
         if (!this.state.isLoggedIn || !this.state.addresses) {
             return [];
         }
+        // Sleutels, geen woorden. Vergelijken op een Nederlands woord zou
+        // breken zodra de site vertaald wordt.
         const result = [];
         if (!this.address('delivery')?.is_complete) {
-            result.push('leveradres');
+            result.push('delivery');
         }
         if (!this.state.useDeliveryAsBilling && !this.address('invoice')?.is_complete) {
-            result.push('factuuradres');
+            result.push('invoice');
         }
         return result;
+    }
+
+    /** De leesbare naam van een adrestype, in de taal van de bezoeker. */
+    addressTypeLabel(type) {
+        return type === 'invoice' ? _t('billing address') : _t('delivery address');
+    }
+
+    get incompleteAddressLabels() {
+        return this.incompleteAddresses.map((type) => this.addressTypeLabel(type));
     }
 
     /**
@@ -325,11 +340,50 @@ export class EventBuilder extends Component {
             country_id: address?.country_id || '',
             phone: address?.phone || '',
             email: address?.email || '',
+            vat: address?.vat || '',
         };
         this.state.addressDraft = values;
         // Een kopie als ijkpunt. Wat de klant daarna typt, vergelijken we
         // hiermee om te weten of er iets te bewaren valt.
         this.state.addressPristine = { ...values };
+        // Een nieuw adres wordt altijd een onderliggend adres, dus daar mag
+        // de naam wel. Bij een bestaand adres beslist de server.
+        this.state.canRenameAddress = address ? !!address.can_rename : true;
+        this.state.canEditVat = address ? address.can_edit_vat !== false : true;
+        this.state.vatLabel = address?.vat_label || 'VAT number';
+    }
+
+    /**
+     * Toont dit blok een btw-nummer?
+     *
+     * Alleen waar het over facturatie gaat: op het billing address, of op het
+     * delivery address wanneer dat ook als billing address dienstdoet. Op een puur
+     * delivery address heeft een btw-nummer niets te zoeken.
+     */
+    get showVat() {
+        const type = this.state.expandedAddress;
+        return type === 'invoice'
+            || (type === 'delivery' && this.state.useDeliveryAsBilling);
+    }
+
+    get canEditVat() {
+        return this.state.canEditVat !== false;
+    }
+
+    get vatLabel() {
+        return this.state.vatLabel || 'VAT number';
+    }
+
+    /**
+     * Mag de naam in dit formulier gewijzigd worden?
+     *
+     * Niet op een hoofdcontact: daar is `name` de naam van de KLANT, en die
+     * hier aanpassen hernoemt hem in het hele ERP - op zijn offertes, zijn
+     * facturen en in de klantenlijst. Alleen onderliggende adressen hebben
+     * een naam die echt bij het adres hoort ("Feestzaal De Kring").
+     */
+    get canRenameAddress() {
+        return this.state.canRenameAddress !== false;
     }
 
     /** Staat er iets in het formulier dat nog niet bewaard is? */
@@ -401,7 +455,7 @@ export class EventBuilder extends Component {
                 values: this.state.addressDraft,
             });
             // Alleen de keuzelijst en de landgegevens overnemen. Het lever-
-            // en factuuradres NIET: `addresses` bevat de standaardadressen van
+            // en billing address NIET: `addresses` bevat de standaardadressen van
             // de klant, en die zouden een afwijkende keuze weer wegdrukken.
             const type = this.state.expandedAddress;
             const keep = {
@@ -413,13 +467,28 @@ export class EventBuilder extends Component {
             // dan klappen we het blok dicht; anders blijft het open met de
             // ontbrekende velden gemarkeerd.
             this.state.addresses[type] = result.address;
+
+            // Het formulier opnieuw vullen met wat de server nu bewaart.
+            // Zonder dit blijft de oude toestand hangen, met twee gevolgen:
+            //
+            //  - `canRenameAddress` bleef staan op de waarde van het vórige
+            //    adres, dus na het aanmaken van een nieuw adres zag je nog
+            //    de melding over je accountnaam.
+            //  - `partner_id` bleef leeg na het aanmaken, waardoor een
+            //    tweede keer bewaren nóg een adres zou aanmaken in plaats
+            //    van het bestaande bij te werken.
+            //
+            // Het ijkpunt voor "niet opgeslagen wijzigingen" wordt hier ook
+            // meteen gelijkgezet, wat klopt: net bewaard is niet gewijzigd.
+            this.fillDraft(result.address);
+
             if (result.address.is_complete) {
                 this.state.expandedAddress = null;
                 this.state.addressDraft = null;
             }
         } catch (error) {
             this.state.addressError =
-                error?.data?.message || 'Het adres kon niet bewaard worden.';
+                error?.data?.message || _t('The address could not be saved.');
         } finally {
             this.state.addressSaving = false;
         }
@@ -466,18 +535,18 @@ export class EventBuilder extends Component {
      */
     get submitLabel() {
         if (!this.state.isLoggedIn) {
-            return 'Inloggen om te boeken';
+            return _t('Sign in to book');
         }
         if (this.isAddressDirty) {
-            return 'Bewaar je adreswijziging eerst';
+            return _t('Save your address change first');
         }
         if (this.incompleteAddresses.length) {
-            return `Vul je ${this.incompleteAddresses[0]} aan`;
+            return _t('Complete your %s', this.incompleteAddressLabels);
         }
         if (this.hasPrepayment) {
-            return `Boek met ${this.formatPrice(this.prepaymentAmount)} voorschot`;
+            return _t('Book with %s down payment', this.formatPrice(this.prepaymentAmount));
         }
-        return 'Bestellen';
+        return _t('Order');
     }
 
     /** Klikken doet altijd iets: inloggen, adres openen, of boeken. */
@@ -491,8 +560,7 @@ export class EventBuilder extends Component {
             return;
         }
         if (this.incompleteAddresses.length) {
-            const type = this.incompleteAddresses[0] === 'leveradres'
-                ? 'delivery' : 'invoice';
+            const type = this.incompleteAddresses[0];
             if (this.state.expandedAddress !== type) {
                 this.toggleAddress(type);
             }
@@ -613,7 +681,7 @@ export class EventBuilder extends Component {
             });
             this.state.error = null;
         } catch (error) {
-            this.state.error = error?.data?.message || 'De prijs kon niet berekend worden.';
+            this.state.error = error?.data?.message || _t('The price could not be calculated.');
         } finally {
             this.state.pricing = false;
         }
@@ -640,7 +708,7 @@ export class EventBuilder extends Component {
             // te betalen.
             window.location = result.redirect_url;
         } catch (error) {
-            this.state.error = error?.data?.message || 'Er ging iets mis. Probeer opnieuw.';
+            this.state.error = error?.data?.message || _t('Something went wrong. Please try again.');
             this.state.submitting = false;
         }
     }

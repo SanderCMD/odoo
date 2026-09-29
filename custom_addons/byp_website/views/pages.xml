@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+      ============================================================
+      Twee voorlopig lege pagina's
+      ============================================================
+      Ze bestaan zodat de menu-items hieronder ergens naartoe wijzen. De
+      opbouw is dezelfde als de homepage: een gekleurde kop in de huisstijl,
+      en geen `oe_structure`, zodat de website-builder er niet in kan en een
+      deploy de pagina herstelt.
+
+      Wil je hier inhoud op, dan schrijven we die in deze template. Wil je ze
+      liever zelf kunnen vullen zonder deploy, zeg het dan: dan zet ik er
+      bewust één sleepzone in.
+    -->
+
+    <template id="page_services" name="Onze diensten">
+        <t t-call="website.layout">
+            <div id="wrap" class="o_byp_page">
+                <section class="o_byp_tool_intro">
+                    <div class="container">
+                        <h1 class="o_byp_tool_title">Onze diensten</h1>
+                        <p class="o_byp_tool_lead">
+                            Van catering tot meubilair en techniek: alles wat je
+                            nodig hebt om er een feest van te maken.
+                        </p>
+                    </div>
+                </section>
+                <section class="container py-5 text-center">
+                    <p class="text-muted">Deze pagina wordt binnenkort ingevuld.</p>
+                </section>
+            </div>
+        </t>
+    </template>
+
+    <record id="page_services_record" model="website.page">
+        <field name="url">/onze-diensten</field>
+        <field name="view_id" ref="page_services"/>
+        <field name="is_published" eval="True"/>
+        <field name="website_indexed" eval="True"/>
+        <field name="website_meta_title">Onze diensten - Build Your Party</field>
+    </record>
+
+    <template id="page_about" name="Over ons">
+        <t t-call="website.layout">
+            <div id="wrap" class="o_byp_page">
+                <section class="o_byp_tool_intro">
+                    <div class="container">
+                        <h1 class="o_byp_tool_title">Over ons</h1>
+                        <p class="o_byp_tool_lead">
+                            Wie we zijn en waarom we feesten organiseren zoals we
+                            dat doen.
+                        </p>
+                    </div>
+                </section>
+                <section class="container py-5 text-center">
+                    <p class="text-muted">Deze pagina wordt binnenkort ingevuld.</p>
+                </section>
+            </div>
+        </t>
+    </template>
+
+    <record id="page_about_record" model="website.page">
+        <field name="url">/over-ons</field>
+        <field name="view_id" ref="page_about"/>
+        <field name="is_published" eval="True"/>
+        <field name="website_indexed" eval="True"/>
+        <field name="website_meta_title">Over ons - Build Your Party</field>
+    </record>
+
+    <!--
+      ============================================================
+      De vier menu-items
+      ============================================================
+      Bewust ZONDER `website_id` en met `website.main_menu` als ouder.
+
+      In website.menu.create (website/models/website_menu.py, regel 134) zit
+      deze haak:
+
+          if not parent_id or (default_menu and parent_id == default_menu.id):
+              parent_id = website.menu_id.id
+
+      Een item zonder website_id en onder het standaardmenu wordt dus
+      automatisch gekopieerd naar de eigen menuboom van elke website. Zou je
+      hier website_id invullen, dan komt het item alleen op die ene website en
+      krijgt een tweede website later niets.
+    -->
+
+    <record id="menu_home" model="website.menu">
+        <field name="name">Home</field>
+        <field name="url">/</field>
+        <field name="page_id" ref="byp_website.homepage_page"/>
+        <field name="parent_id" ref="website.main_menu"/>
+        <field name="sequence" type="int">10</field>
+    </record>
+
+    <record id="menu_services" model="website.menu">
+        <field name="name">Onze diensten</field>
+        <field name="url">/onze-diensten</field>
+        <field name="page_id" ref="byp_website.page_services_record"/>
+        <field name="parent_id" ref="website.main_menu"/>
+        <field name="sequence" type="int">20</field>
+    </record>
+
+    <record id="menu_about" model="website.menu">
+        <field name="name">Over ons</field>
+        <field name="url">/over-ons</field>
+        <field name="page_id" ref="byp_website.page_about_record"/>
+        <field name="parent_id" ref="website.main_menu"/>
+        <field name="sequence" type="int">30</field>
+    </record>
+
+    <!-- Contact wijst naar de bestaande contactpagina van Odoo. -->
+    <record id="menu_contact" model="website.menu">
+        <field name="name">Contact</field>
+        <field name="url">/contactus</field>
+        <field name="page_id" ref="website.contactus_page"/>
+        <field name="parent_id" ref="website.main_menu"/>
+        <field name="sequence" type="int">40</field>
+    </record>
+
+</odoo>

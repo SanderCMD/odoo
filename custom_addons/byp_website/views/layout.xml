@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+      ============================================================
+      Eerst: de standaardheader van Odoo uitzetten
+      ============================================================
+      Dit MOET bovenaan staan, voor onze eigen header hieronder.
+
+      Odoo's header-templates erven allemaal website.layout en vervangen
+      hetzelfde element: `//header//nav`. Staat website.template_header_default
+      nog aan, dan is dat <nav> al vervangen tegen de tijd dat onze xpath
+      aan de beurt komt (views worden toegepast op volgorde van id, en die
+      van Odoo is ouder). Je krijgt dan:
+
+        Element '<xpath expr="//header//nav">' cannot be located in parent view
+
+      De volgorde binnen dit bestand is beslissend, want ir.ui.view valideert
+      meteen bij het aanmaken (ir_ui_view.py, create -> _check_xml met
+      ir_ui_view_partial_validation). Wachten tot het einde van de transactie
+      gebeurt hier dus niet.
+    -->
+    <record id="website.template_header_default" model="ir.ui.view">
+        <field name="active" eval="False"/>
+    </record>
+
+    <!--
+      ============================================================
+      Lettertypes
+      ============================================================
+      Voorlopig via Google Fonts, als benadering van de huisstijl uit de
+      video: een brede, zware schreefloze voor de koppen en een ronde
+      geometrische voor de rest. Zodra je de echte fonts hebt, vervang je
+      deze <link> door de bestanden in static/src/fonts en een @font-face.
+    -->
+    <template id="byp_fonts" inherit_id="website.layout" name="Build Your Party fonts">
+        <xpath expr="//head" position="inside">
+            <link rel="preconnect" href="https://fonts.googleapis.com"/>
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin"/>
+            <link rel="stylesheet"
+                  href="https://fonts.googleapis.com/css2?family=Archivo+Black&amp;family=Quicksand:wght@500;700&amp;display=swap"/>
+        </xpath>
+    </template>
+
+    <!--
+      ============================================================
+      De navigatiebalk, over de hele site
+      ============================================================
+      Odoo levert een handvol header-templates die elk `website.layout`
+      erven en het <nav>-element vervangen (zie website.template_header_default).
+      We voegen er een van onszelf aan toe volgens hetzelfde patroon, en
+      zetten de standaard hieronder uit.
+
+      Het menu komt uit `website.menu_id.child_id`, dus de items blijven
+      beheerbaar in het ERP onder Website > Menu's. Alleen de vórm ligt vast
+      in code.
+    -->
+    <template id="template_header_byp" inherit_id="website.layout"
+              name="Build Your Party header" active="True">
+        <xpath expr="//header//nav" position="replace">
+
+            <nav class="navbar o_byp_nav navbar-expand-lg">
+                <!--
+                  Drie kolommen: logo links, menu in het midden, acties
+                  rechts. Het raster staat op `1fr auto 1fr`, dus de
+                  buitenste kolommen zijn per definitie even breed en de
+                  middelste valt exact op het midden van de pagina - hoe
+                  breed het logo of het rechterblok ook is.
+
+                  Met `ms-auto me-auto` (de vorige oplossing) centreerde het
+                  menu tussen zijn buren in plaats van op de pagina, en week
+                  het dus mee met de breedte van die buren.
+                -->
+                <div class="container-fluid px-4 px-lg-5 o_byp_nav_grid">
+
+                    <!-- Merk -->
+                    <a class="navbar-brand o_byp_brand" href="/">
+                        <span t-field="website.logo" t-options="{'widget': 'image', 'class': 'o_byp_logo'}"
+                              t-if="website.logo"/>
+                        <span t-else="" class="o_byp_wordmark">
+                            <span>Build</span><span>Your</span><span>Party</span>
+                        </span>
+                    </a>
+
+                    <!-- Midden: het menu. Enkel dit klapt in op mobiel. -->
+                    <div class="collapse navbar-collapse o_byp_nav_center" id="byp_nav">
+                        <ul class="navbar-nav o_byp_menu">
+                            <t t-foreach="website.menu_id.child_id" t-as="submenu">
+                                <li class="nav-item">
+                                    <a class="nav-link"
+                                       t-att-href="submenu.url"
+                                       t-att-class="'nav-link active' if submenu.url == request.httprequest.path else 'nav-link'"
+                                       t-out="submenu.name"/>
+                                </li>
+                            </t>
+                        </ul>
+                    </div>
+
+                    <!--
+                      Rechts: aanmelden of het gebruikersmenu, de actieknop,
+                      en op mobiel de hamburger.
+
+                      De video toont hier alleen de knop, maar zonder de twee
+                      t-calls hieronder verdwijnt de inlogmogelijkheid van de
+                      hele site. Dat breekt de boekingsflow: wie op "Inloggen
+                      om te boeken" klikt komt wel op /web/login, maar ziet
+                      daarna nergens dat hij ingelogd is en kan er niet meer
+                      uit.
+
+                      De actieknop staat bewust buiten de inklapbare zone: op
+                      een gsm wil je die zien zonder eerst het menu te openen.
+                    -->
+                    <div class="o_byp_nav_right">
+                        <ul class="navbar-nav align-items-center flex-row gap-3 o_byp_user">
+                            <!-- Taalkiezer. Verschijnt vanzelf zodra er meer
+                                 dan één taal op de website actief staat, en
+                                 blijft anders onzichtbaar. -->
+                            <t t-call="website.placeholder_header_language_selector">
+                                <t t-set="_btn_class" t-value="'nav-link o_byp_signin'"/>
+                                <t t-set="_dropdown_menu_class" t-value="'dropdown-menu-end'"/>
+                            </t>
+                            <t t-call="portal.placeholder_user_sign_in">
+                                <t t-set="_item_class" t-value="'nav-item'"/>
+                                <t t-set="_link_class" t-value="'nav-link o_byp_signin'"/>
+                            </t>
+                            <t t-call="portal.user_dropdown">
+                                <t t-set="_user_name" t-value="True"/>
+                                <t t-set="_item_class" t-value="'nav-item dropdown'"/>
+                                <t t-set="_link_class" t-value="'nav-link o_byp_signin border-0'"/>
+                                <t t-set="_dropdown_menu_class" t-value="'dropdown-menu-end'"/>
+                            </t>
+                        </ul>
+
+                        <a class="btn o_byp_cta" href="/bouw-je-feest">Naar de tool</a>
+
+                        <button class="navbar-toggler o_byp_toggler" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#byp_nav"
+                                aria-controls="byp_nav" aria-expanded="false"
+                                aria-label="Menu">
+                            <span class="fa fa-bars"/>
+                        </button>
+                    </div>
+                </div>
+            </nav>
+        </xpath>
+    </template>
+
+</odoo>

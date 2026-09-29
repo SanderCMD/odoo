@@ -42,7 +42,7 @@ class EventBuilderOption(models.Model):
     # Standaard de productnaam, maar overschrijfbaar: op de website wil je
     # misschien "Rustiek houten banket" i.p.v. "TAFEL-HOUT-240".
     name = fields.Char(
-        string="Titel op website",
+        string="Title on website",
         compute='_compute_name',
         store=True,
         readonly=False,   # readonly=False maakt van een compute een *default*
@@ -50,20 +50,20 @@ class EventBuilderOption(models.Model):
     )
 
     sequence = fields.Integer(default=10)
-    description = fields.Text(string="Korte omschrijving", translate=True)
+    description = fields.Text(string="Short description", translate=True)
     image = fields.Image(
-        string="Afbeelding", max_width=1024, max_height=1024,
-        help="Laat leeg om de productafbeelding te gebruiken.")
+        string="Image", max_width=1024, max_height=1024,
+        help="Leave empty to use the product image.")
 
     # --- Hoeveelheidslogica: het hart van de prijsberekening ---
 
     qty_mode = fields.Selection(
         selection=[
-            ('fixed', "Vast aantal"),
-            ('per_person', "Per persoon"),
-            ('per_x', "Per X personen"),
+            ('fixed', "Fixed quantity"),
+            ('per_person', "Per person"),
+            ('per_x', "Per X persons"),
         ],
-        string="Hoeveelheid",
+        string="Quantity",
         default='per_person',
         required=True,
     )
@@ -72,22 +72,22 @@ class EventBuilderOption(models.Model):
         string="Factor",
         default=1.0,
         digits=(12, 2),
-        help="Vast aantal: het aantal stuks.\n"
-             "Per persoon: aantal stuks per persoon (1 stoel = 1).\n"
-             "Per X personen: aantal personen per stuk (1 tafel per 8 = 8).",
+        help="Fixed quantity: the number of units.\n"
+             "Per person: number of units per guest (1 chair = 1).\n"
+             "Per X persons: number of persons per unit (1 table per 8 = 8).",
     )
 
     charge_per_day = fields.Boolean(
-        string="Per dag aanrekenen",
-        help="Vermenigvuldigt de hoeveelheid met de duur van het event "
-             "(ophaaldatum - leverdatum). Aanvinken voor huurmateriaal, "
-             "uitvinken voor catering en diensten.",
+        string="Charge per day",
+        help="Multiplies the quantity by the duration of the event "
+             "(pickup date - delivery date). Check for rental items, "
+             "uncheck for catering and services.",
     )
 
     # Handige leesvelden voor in de backend-lijst, zodat je meteen de prijs ziet.
     currency_id = fields.Many2one(related='product_id.currency_id')
     list_price = fields.Float(
-        related='product_id.lst_price', string="Catalogusprijs")
+        related='product_id.lst_price', string="Catalog Price")
 
     @api.depends('product_id')
     def _compute_name(self):
@@ -167,16 +167,16 @@ class EventBuilderOption(models.Model):
         )
 
     def _get_price_label(self):
-        """Korte uitleg waar die stukprijs voor staat, bv. "per persoon/dag"."""
+        """Korte uitleg waar die stukprijs voor staat, bv. "per guest/dag"."""
         self.ensure_one()
         if self.qty_mode == 'per_person':
-            unit = _("per persoon")
+            unit = _("per guest")
         elif self.qty_mode == 'per_x':
-            unit = _("per %(count)s personen", count=int(self.qty_factor or 0))
+            unit = _("per %(count)s guests", count=int(self.qty_factor or 0))
         else:
-            unit = _("per stuk")
+            unit = _("per unit")
         if self.charge_per_day:
-            unit = _("%(unit)s, per dag", unit=unit)
+            unit = _("%(unit)s, per day", unit=unit)
         return unit
 
     def _get_image_url(self):

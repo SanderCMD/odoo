@@ -23,7 +23,7 @@
         </div>
 
         <div t-elif="!state.config" class="alert alert-warning">
-            Geen configurator gekoppeld aan dit blok.
+            No configurator linked to this block.
         </div>
 
         <div t-else="" class="row g-4">
@@ -35,20 +35,20 @@
                      bepaalt mee de prijs van huurmateriaal. -->
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h4 class="card-title mb-3">Wanneer en met hoeveel?</h4>
+                        <h4 class="card-title mb-3">When and with how many?</h4>
                         <!-- Drie velden op één rij. De postcode is hier weg:
                              die halen we uit het leveradres, waar hij hoort en
                              waar hij ook echt het adres van de locatie is. -->
                         <div class="row g-3">
                             <div class="col-sm-4">
-                                <label class="form-label" for="eb_date_from">Leverdatum</label>
+                                <label class="form-label" for="eb_date_from">Delivery date</label>
                                 <input id="eb_date_from" type="date" class="form-control"
                                        t-att-min="minDate"
                                        t-model="state.dateFrom"
                                        t-on-change="onDateChange"/>
                             </div>
                             <div class="col-sm-4">
-                                <label class="form-label" for="eb_date_to">Ophaaldatum</label>
+                                <label class="form-label" for="eb_date_to">Pickup date</label>
                                 <input id="eb_date_to" type="date" class="form-control"
                                        t-att-min="state.dateFrom"
                                        t-model="state.dateTo"
@@ -160,7 +160,7 @@
             <div class="col-lg-4" data-summary="1">
                 <div class="card o_event_builder_summary">
                     <div class="card-body">
-                        <h4 class="card-title">Jouw event</h4>
+                        <h4 class="card-title">Your event</h4>
 
                         <div t-if="state.error" class="alert alert-danger py-2 small">
                             <t t-esc="state.error"/>
@@ -168,13 +168,13 @@
 
                         <div t-if="!state.quote || !state.quote.lines.length"
                              class="text-muted small py-3">
-                            Maak hiernaast een keuze om je prijs te zien.
+                            Make a choice to see your price.
                         </div>
 
                         <div t-else="">
                             <div class="small text-muted mb-2">
-                                <t t-esc="state.guestCount"/> personen &#183;
-                                <t t-esc="durationDays"/> dag(en)
+                                <t t-esc="state.guestCount"/> guests &#183;
+                                <t t-esc="durationDays"/> day(s)
                             </div>
                             <table class="table table-sm">
                                 <tbody>
@@ -193,16 +193,16 @@
                                 </tbody>
                             </table>
                             <div class="d-flex justify-content-between small text-muted">
-                                <span>Excl. btw</span>
+                                <span>Excl. VAT</span>
                                 <span t-esc="formatPrice(state.quote.amount_untaxed)"/>
                             </div>
                             <div class="d-flex justify-content-between small text-muted">
-                                <span>Btw</span>
+                                <span>VAT</span>
                                 <span t-esc="formatPrice(state.quote.amount_tax)"/>
                             </div>
                             <hr/>
                             <div class="d-flex justify-content-between fs-4 fw-bold">
-                                <span>Totaal</span>
+                                <span>Total</span>
                                 <span t-att-class="{ 'opacity-50': state.pricing }"
                                       t-esc="formatPrice(state.quote.amount_total)"/>
                             </div>
@@ -214,7 +214,7 @@
                             <div t-if="hasPrepayment"
                                  class="d-flex justify-content-between mt-2 pt-2 border-top">
                                 <span class="fw-semibold">
-                                    Nu te betalen
+                                    To pay now
                                     <span class="text-muted fw-normal">
                                         (<t t-esc="prepaymentPercent"/>%)
                                     </span>
@@ -222,12 +222,12 @@
                                 <span class="fw-semibold" t-esc="formatPrice(prepaymentAmount)"/>
                             </div>
                             <div t-if="hasPrepayment" class="text-muted small">
-                                Rest na afloop van je event.
+                                The rest after your event.
                             </div>
                         </div>
 
                         <div t-if="missingSteps.length" class="alert alert-info py-2 small mt-3 mb-0">
-                            Nog te kiezen:
+                            Still to choose:
                             <t t-foreach="missingSteps" t-as="step" t-key="step.id">
                                 <t t-esc="step.name"/><t t-if="!step_last">, </t>
                             </t>
@@ -251,7 +251,7 @@
                                 <input class="form-check-input" type="checkbox" id="eb_same_addr"
                                        t-model="state.useDeliveryAsBilling"/>
                                 <label class="form-check-label" for="eb_same_addr">
-                                    Factuuradres is hetzelfde
+                                    Billing address is the same
                                 </label>
                             </div>
                             <t t-if="!state.useDeliveryAsBilling">
@@ -274,17 +274,19 @@
                         </button>
 
                         <div t-if="!state.isLoggedIn" class="text-muted small text-center mt-2">
-                            Je keuze blijft bewaard terwijl je inlogt.
+                            Your selection is kept while you sign in.
                         </div>
                         <div t-elif="isAddressDirty" class="text-primary small text-center mt-2">
-                            Je hebt je adres aangepast maar nog niet bewaard.
+                            You changed your address but have not saved it.
                         </div>
                         <div t-elif="incompleteAddresses.length" class="text-muted small text-center mt-2">
-                            Nog aan te vullen:
-                            <t t-esc="incompleteAddresses.join(' en ')"/>
+                            Still to complete:
+                            <t t-foreach="incompleteAddressLabels" t-as="label" t-key="label_index">
+                                <t t-if="!label_first"> en </t><t t-esc="label"/>
+                            </t>
                         </div>
                         <div t-else="" class="text-muted small text-center mt-2">
-                            Je krijgt eerst je offerte te zien - je betaalt pas daarna.
+                            You will see your quotation first - you only pay afterwards.
                         </div>
                     </div>
                 </div>
@@ -307,15 +309,15 @@
                 <div class="lh-sm">
                     <div class="fw-bold" t-esc="formatPrice(state.quote.amount_total)"/>
                     <div t-if="hasPrepayment" class="small text-muted">
-                        nu <t t-esc="formatPrice(prepaymentAmount)"/>
+                        Due now <t t-esc="formatPrice(prepaymentAmount)"/>
                         (<t t-esc="prepaymentPercent"/>%)
                     </div>
                     <div t-else="" class="small text-muted">
-                        <t t-esc="state.guestCount"/> personen
+                        <t t-esc="state.guestCount"/> guests
                     </div>
                 </div>
                 <button class="btn btn-primary flex-shrink-0" t-on-click="goToSummary">
-                    Bekijk &amp; boek
+                    Review &amp; book
                 </button>
             </div>
         </div>
@@ -343,7 +345,7 @@
                     <t t-esc="addr.display"/>
                 </div>
                 <div class="small text-muted fst-italic" t-else="">
-                    Nog geen adres
+                    No address yet
                 </div>
             </div>
             <button class="btn btn-link btn-sm p-0 text-decoration-none flex-shrink-0"
@@ -356,7 +358,7 @@
 
         <div t-if="addr and !addr.is_complete and state.expandedAddress !== type"
              class="small text-warning mt-1">
-            Nog aan te vullen
+            Still to complete
         </div>
 
         <!-- ===== Uitgeklapt: het formulier ===== -->
@@ -374,16 +376,25 @@
                     <t t-esc="choice.label"/>
                 </option>
                 <option value="new" t-att-selected="!state.addressDraft.partner_id">
-                    Nieuw adres...
+                    New address...
                 </option>
             </select>
 
             <!-- Een sterretje op de verplichte velden. Welke dat zijn, komt
                  van de server en hangt af van het land. -->
-            <input type="text" class="form-control form-control-sm mb-2"
-                   t-att-placeholder="fieldLabel('name', 'Naam')"
+            <!-- De naam. Op een hoofdcontact is dit de naam van de KLANT, niet
+                 van het adres, dus daar staat het veld op alleen-lezen: hem
+                 hier wijzigen zou de klant hernoemen in het hele ERP. -->
+            <input type="text" class="form-control form-control-sm"
+                   t-att-placeholder="canRenameAddress ? fieldLabel('name', 'Naam van dit adres') : 'Naam'"
                    t-att-class="{ 'is-invalid': isMissingField('name') }"
+                   t-att-readonly="canRenameAddress ? undefined : 'readonly'"
                    t-model="state.addressDraft.name"/>
+            <div t-if="!canRenameAddress" class="form-text small mb-2">
+                This is your account name. To have it delivered under another
+                name, choose "New address" above.
+            </div>
+            <div t-else="" class="mb-2"/>
             <input type="text" class="form-control form-control-sm mb-2"
                    t-att-placeholder="fieldLabel('street', 'Straat en nummer')"
                    t-att-class="{ 'is-invalid': isMissingField('street') }"
@@ -391,51 +402,69 @@
             <div class="row g-2 mb-2">
                 <div class="col-4">
                     <input type="text" class="form-control form-control-sm"
-                           t-att-placeholder="fieldLabel('zip', 'Postcode')"
+                           t-att-placeholder="fieldLabel('zip', 'Zip code')"
                            t-att-class="{ 'is-invalid': isMissingField('zip') }"
                            t-model="state.addressDraft.zip"/>
                 </div>
                 <div class="col-8">
                     <input type="text" class="form-control form-control-sm"
-                           t-att-placeholder="fieldLabel('city', 'Gemeente')"
+                           t-att-placeholder="fieldLabel('city', 'City')"
                            t-att-class="{ 'is-invalid': isMissingField('city') }"
                            t-model="state.addressDraft.city"/>
                 </div>
             </div>
             <select class="form-select form-select-sm mb-2" t-on-change="onCountryChange">
-                <option value="">Land...</option>
+                <option value="">Country...</option>
                 <option t-foreach="countries" t-as="country" t-key="country.id"
                         t-att-value="country.id"
                         t-att-selected="isCurrentCountry(country.id)">
                     <t t-esc="country.name"/>
                 </option>
             </select>
-            <div t-if="state.countriesLoading" class="text-muted small mb-2">Landen laden...</div>
+            <div t-if="state.countriesLoading" class="text-muted small mb-2">Loading countries...</div>
             <select t-if="draftStates.length" class="form-select form-select-sm mb-2"
                     t-model="state.addressDraft.state_id">
-                <option value="">Provincie...</option>
+                <option value="">State...</option>
                 <option t-foreach="draftStates" t-as="st" t-key="st.id" t-att-value="st.id">
                     <t t-esc="st.name"/>
                 </option>
             </select>
             <input type="tel" class="form-control form-control-sm mb-2"
-                   t-att-placeholder="fieldLabel('phone', 'Telefoon')"
+                   t-att-placeholder="fieldLabel('phone', 'Phone')"
                    t-att-class="{ 'is-invalid': isMissingField('phone') }"
                    t-model="state.addressDraft.phone"/>
             <input type="email" class="form-control form-control-sm mb-2"
-                   t-att-placeholder="fieldLabel('email', 'E-mail')"
+                   t-att-placeholder="fieldLabel('email', 'Email')"
                    t-att-class="{ 'is-invalid': isMissingField('email') }"
                    t-model="state.addressDraft.email"/>
+
+            <!-- VAT-nummer, alleen waar het over facturatie gaat.
+                 Het hoort bij het bedrijf en niet bij het adres: Odoo houdt
+                 het bij op de commerciele partner en schuift een wijziging op
+                 een kindadres daar sowieso naartoe. -->
+            <t t-if="showVat">
+                <input type="text" class="form-control form-control-sm"
+                       t-att-placeholder="vatLabel"
+                       t-att-readonly="canEditVat ? undefined : 'readonly'"
+                       t-model="state.addressDraft.vat"/>
+                <div t-if="!canEditVat" class="form-text small mb-2">
+                    Your VAT number can no longer be changed because invoices have
+                    already been issued.
+                </div>
+                <div t-else="" class="form-text small mb-2">
+                    Applies to your whole account, not just this address.
+                </div>
+            </t>
 
             <div t-if="state.addressError" class="alert alert-danger py-1 px-2 small">
                 <t t-esc="state.addressError"/>
             </div>
 
-            <!-- Zolang er iets gewijzigd is, valt de Bewaren-knop op en staat
+            <!-- Zolang er iets gewijzigd is, valt de Save-knop op en staat
                  er expliciet bij dat het nog niet opgeslagen is. Boeken is
                  tot zolang geblokkeerd. -->
             <div t-if="isAddressDirty" class="small text-primary mb-2">
-                <span class="fa fa-pencil me-1"/>Nog niet opgeslagen
+                <span class="fa fa-pencil me-1"/>Not saved yet
             </div>
 
             <div class="d-flex gap-2">
@@ -444,12 +473,12 @@
                         t-att-disabled="state.addressSaving"
                         t-on-click="saveAddress">
                     <span t-if="state.addressSaving" class="spinner-border spinner-border-sm me-1"/>
-                    Bewaren
+                    Save
                 </button>
                 <button class="btn btn-sm btn-link text-muted text-decoration-none"
                         t-att-disabled="state.addressSaving"
                         t-on-click="cancelAddressEdit">
-                    Annuleren
+                    Cancel
                 </button>
             </div>
         </div>
